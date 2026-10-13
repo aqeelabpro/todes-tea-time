@@ -47,12 +47,12 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
   let matchaNoticeLeft = 0;
   let lastBrew = '';
 
-  function drop(position, guaranteed = false) {
-    if (!guaranteed && Math.random() >= (modifiers.getDropChance?.() ?? LEAF_DROP_CHANCE)) return;
+  function drop(position, guaranteed = false, baseChance = LEAF_DROP_CHANCE, fixedBrew = null) {
+    if (!guaranteed && Math.random() >= (modifiers.getDropChance?.(baseChance) ?? baseChance)) return;
     const mesh = makeLeaf();
     mesh.position.set(position.x, position.y, LEAF_HEIGHT);
     scene.add(mesh);
-    drops.push({ mesh, age: 0, phase: Math.random() * Math.PI * 2 });
+    drops.push({ mesh, age: 0, phase: Math.random() * Math.PI * 2, fixedBrew });
   }
 
   function effect(radius, color, center) {
@@ -79,9 +79,9 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
       let kills = 0;
       for (const enemy of [...enemies.enemies]) {
         const enemyPosition = enemy.group.getWorldPosition(new THREE.Vector3());
-        if (Math.hypot(enemyPosition.x - center.x, enemyPosition.y - center.y) <= MATCHA_RADIUS && enemies.enemies.includes(enemy)) {
-          enemies.remove(enemy);
-          kills += 1;
+        if (Math.hypot(enemyPosition.x - center.x, enemyPosition.y - center.y) - enemy.radius <= MATCHA_RADIUS && enemies.enemies.includes(enemy)) {
+          const amount = enemy.type === 'boss' ? 3 : enemy.type === 'brute' ? 2 : enemy.hp;
+          if (enemies.damage(enemy, amount, center)) kills += 1;
         }
       }
       modifiers.onBrewEvent?.(kind, 'pickup', kills);
@@ -113,8 +113,9 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
       item.mesh.position.z = LEAF_HEIGHT + Math.sin(time * 3 + item.phase) * LEAF_BOB_HEIGHT;
       item.mesh.visible = item.age < LEAF_LIFETIME_SECONDS - LEAF_BLINK_SECONDS || Math.floor(item.age * 8) % 2 === 0;
       if (Math.hypot(item.mesh.position.x - player.group.position.x, item.mesh.position.y - player.group.position.y) <= (modifiers.getPickupRadius?.() ?? PICKUP_RADIUS)) {
-        const kind = ['Green Tea', 'Chamomile', 'Matcha Burst'][Math.floor(Math.random() * 3)];
+        const kind = item.fixedBrew ?? ['Green Tea', 'Chamomile', 'Matcha Burst'][Math.floor(Math.random() * 3)];
         removeDrop(i);
+        modifiers.onLeafCollected?.();
         brew(kind);
       } else if (item.age >= LEAF_LIFETIME_SECONDS) removeDrop(i);
     }
@@ -145,9 +146,9 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
     });
   }
 
-  function contact(enemy) {
+  function contact(enemy, destroyOnContact = true) {
     if (invulnerableLeft > 0) {
-      enemies.remove(enemy);
+      if (destroyOnContact) enemies.remove(enemy);
       onChange();
       return 'safe';
     }
@@ -156,7 +157,7 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
       shieldLeft = 0;
       shieldRing.visible = false;
       invulnerableLeft = SHIELD_INVULNERABILITY_SECONDS;
-      enemies.remove(enemy);
+      if (destroyOnContact) enemies.remove(enemy);
       onChange();
       return 'shielded';
     }

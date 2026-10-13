@@ -2,7 +2,8 @@ import {
   ATTACK_COOLDOWN, ATTACK_RADIUS, CHAIN_LASH_CHANCE, CHAIN_LASH_RADIUS_MULTIPLIER,
   LEAF_DROP_CHANCE, LILY_HOP_BONUS, LONG_TONGUE_BONUS, LUCKY_LEAF_BONUS,
   MAX_LIVES, PICKUP_RADIUS, PLAYER_HOP_SECONDS, QUICK_TONGUE_REDUCTION, TEA_MAGNET_MULTIPLIER, UPGRADE_CAPS,
-  UPGRADE_CARD_COUNT, UPGRADE_SCORE_GROWTH, UPGRADE_SCORE_STEP,
+  TONGUE_COOLDOWN_AFTER_EAT, TONGUE_MIN_COOLDOWN, TONGUE_MAX_RANGE_MULTIPLIER,
+  TONGUE_RANGE, UPGRADE_CARD_COUNT, UPGRADE_SCORE_GROWTH, UPGRADE_SCORE_STEP,
 } from '../config.js';
 import { getDisplayedScore } from '../GameState.js';
 
@@ -17,8 +18,8 @@ const icons = {
 };
 
 const upgrades = [
-  { id: 'longTongue', name: 'Long Tongue', description: 'Bigger attack ring. Hit enemies from farther away.' },
-  { id: 'quickTongue', name: 'Quick Tongue', description: 'Attack more often. Spend less time waiting between attacks.' },
+  { id: 'longTongue', name: 'Long Tongue', description: 'Bigger Space ring and longer tongue reach. Hit enemies from farther away.' },
+  { id: 'quickTongue', name: 'Quick Tongue', description: 'Use Space and your tongue more often. Wait less between attacks.' },
   { id: 'lilyHop', name: 'Lily Hop', description: 'Hop faster. Escape enemies and grab leaves sooner.' },
   { id: 'teaMagnet', name: 'Tea Magnet', description: 'Collect tea leaves from farther away.' },
   { id: 'luckyLeaf', name: 'Lucky Leaf', description: 'Enemies drop tea leaves more often.' },
@@ -32,9 +33,9 @@ function valueChange(id, level, state) {
   const percent = (value) => `${units(value * 100)}%`;
   switch (id) {
     case 'longTongue':
-      return `Attack radius: ${units(ATTACK_RADIUS * (1 + LONG_TONGUE_BONUS) ** level)} → ${units(ATTACK_RADIUS * (1 + LONG_TONGUE_BONUS) ** next)} units`;
+      return `Space radius: ${units(ATTACK_RADIUS * (1 + LONG_TONGUE_BONUS) ** level)} → ${units(ATTACK_RADIUS * (1 + LONG_TONGUE_BONUS) ** next)} · Tongue range: ${units(Math.min(ATTACK_RADIUS * TONGUE_MAX_RANGE_MULTIPLIER, TONGUE_RANGE * (1 + LONG_TONGUE_BONUS) ** level))} → ${units(Math.min(ATTACK_RADIUS * TONGUE_MAX_RANGE_MULTIPLIER, TONGUE_RANGE * (1 + LONG_TONGUE_BONUS) ** next))} units`;
     case 'quickTongue':
-      return `Time between attacks: ${(ATTACK_COOLDOWN * (1 - QUICK_TONGUE_REDUCTION) ** level).toFixed(2)}s → ${(ATTACK_COOLDOWN * (1 - QUICK_TONGUE_REDUCTION) ** next).toFixed(2)}s`;
+      return `Space wait: ${(ATTACK_COOLDOWN * (1 - QUICK_TONGUE_REDUCTION) ** level).toFixed(2)}s → ${(ATTACK_COOLDOWN * (1 - QUICK_TONGUE_REDUCTION) ** next).toFixed(2)}s · Tongue wait: ${Math.max(TONGUE_MIN_COOLDOWN, TONGUE_COOLDOWN_AFTER_EAT * (1 - QUICK_TONGUE_REDUCTION) ** level).toFixed(2)}s → ${Math.max(TONGUE_MIN_COOLDOWN, TONGUE_COOLDOWN_AFTER_EAT * (1 - QUICK_TONGUE_REDUCTION) ** next).toFixed(2)}s`;
     case 'lilyHop':
       return `Base hop time: ${(PLAYER_HOP_SECONDS / (1 + LILY_HOP_BONUS) ** level).toFixed(2)}s → ${(PLAYER_HOP_SECONDS / (1 + LILY_HOP_BONUS) ** next).toFixed(2)}s`;
     case 'teaMagnet':
@@ -48,7 +49,7 @@ function valueChange(id, level, state) {
   }
 }
 
-export function createUpgrades(state, onChainAttack) {
+export function createUpgrades(state, onChainAttack, onChoose = () => {}) {
   const counts = Object.fromEntries(upgrades.map(({ id }) => [id, 0]));
   const hud = document.querySelector('.hud');
   const owned = document.createElement('div');
@@ -112,6 +113,7 @@ export function createUpgrades(state, onChainAttack) {
     if (state.mode !== 'upgrade' || !choices[index]) return false;
     const id = choices[index].id;
     counts[id] += 1;
+    onChoose(choices[index].name);
     if (id === 'thickSkin') {
       state.maxLives = Math.min(MAX_LIVES, state.maxLives + 1);
       state.lives = Math.min(state.maxLives, state.lives + 1);
@@ -161,8 +163,11 @@ export function createUpgrades(state, onChainAttack) {
     get nextThreshold() { return nextThreshold; },
     get attackRadius() { return ATTACK_RADIUS * (1 + LONG_TONGUE_BONUS) ** counts.longTongue; },
     get attackCooldown() { return ATTACK_COOLDOWN * (1 - QUICK_TONGUE_REDUCTION) ** counts.quickTongue; },
+    get tongueRange() { return Math.min(ATTACK_RADIUS * TONGUE_MAX_RANGE_MULTIPLIER, TONGUE_RANGE * (1 + LONG_TONGUE_BONUS) ** counts.longTongue); },
+    get tongueCooldown() { return Math.max(TONGUE_MIN_COOLDOWN, TONGUE_COOLDOWN_AFTER_EAT * (1 - QUICK_TONGUE_REDUCTION) ** counts.quickTongue); },
     get moveMultiplier() { return (1 + LILY_HOP_BONUS) ** counts.lilyHop; },
     get pickupRadius() { return PICKUP_RADIUS * TEA_MAGNET_MULTIPLIER ** counts.teaMagnet; },
     get dropChance() { return Math.min(1, LEAF_DROP_CHANCE + LUCKY_LEAF_BONUS * counts.luckyLeaf); },
+    dropChanceFor(baseChance) { return Math.min(1, baseChance + LUCKY_LEAF_BONUS * counts.luckyLeaf); },
   };
 }

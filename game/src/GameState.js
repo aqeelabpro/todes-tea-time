@@ -10,6 +10,9 @@ export function createGameState() {
     lives: START_LIVES,
     maxLives: START_LIVES,
     hitInvulnerableLeft: 0,
+    endless: false,
+    victoryShown: false,
+    bossRemainingPercent: null,
   };
 }
 

@@ -3,17 +3,23 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
   FLOOR_TILE_SIZE, HOUSE_HALF_HEIGHT, HOUSE_HALF_WIDTH, HOUSE_MODEL_SCALE,
   HOUSE_POSITIONS, MAP_BOUNDARY_INSET, MAP_HALF_SIZE,
+  BOSS_HOUSE_FLASH_SECONDS, BOSS_HOUSE_FLASH_COLOR, BOSS_HOUSE_FLASH_EMISSIVE,
 } from '../config.js';
 import { groundModel } from './ModelGrounding.js';
 
-export function isBlocked(x, y, radius = 0) {
-  if (Math.abs(x) + radius > MAP_HALF_SIZE - MAP_BOUNDARY_INSET || Math.abs(y) + radius > MAP_HALF_SIZE - MAP_BOUNDARY_INSET) return true;
-  return HOUSE_POSITIONS.some(([hx, hy]) =>
+export function houseAt(x, y, radius = 0) {
+  return HOUSE_POSITIONS.findIndex(([hx, hy]) =>
     Math.abs(x - hx) < HOUSE_HALF_WIDTH + radius && Math.abs(y - hy) < HOUSE_HALF_HEIGHT + radius
   );
 }
 
+export function isBlocked(x, y, radius = 0) {
+  if (Math.abs(x) + radius > MAP_HALF_SIZE - MAP_BOUNDARY_INSET || Math.abs(y) + radius > MAP_HALF_SIZE - MAP_BOUNDARY_INSET) return true;
+  return houseAt(x, y, radius) >= 0;
+}
+
 export function createWorld(scene) {
+  const houses = [];
   scene.background = new THREE.Color('#228B22');
   scene.add(new THREE.AmbientLight('#ffffff', 1.5));
   const sun = new THREE.DirectionalLight('#ffffff', 1.5);
@@ -43,14 +49,67 @@ export function createWorld(scene) {
 
   const loader = new GLTFLoader();
   loader.load('/models/small_house.glb', ({ scene: model }) => {
-    HOUSE_POSITIONS.forEach(([x, y]) => {
+    HOUSE_POSITIONS.forEach(([x, y], index) => {
       const house = model.clone(true);
+      const materials = [];
+      house.traverse((part) => {
+        if (!part.isMesh || !part.material) return;
+        const cloneMaterial = (source) => {
+          const material = source.clone();
+          materials.push({
+            material,
+            color: material.color?.clone(),
+            emissive: material.emissive?.clone(),
+            intensity: material.emissiveIntensity,
+          });
+          return material;
+        };
+        part.material = Array.isArray(part.material) ? part.material.map(cloneMaterial) : cloneMaterial(part.material);
+      });
       house.position.set(x, y, 0);
       house.rotation.x = Math.PI / 2;
       house.rotateY(Math.floor(Math.random() * 4) * Math.PI / 2);
       house.scale.setScalar(HOUSE_MODEL_SCALE);
       scene.add(house);
       groundModel(house);
+      houses[index] = { materials, flashLeft: 0 };
     });
   });
+
+  function restore(house) {
+    for (const entry of house.materials) {
+      if (entry.color) entry.material.color.copy(entry.color);
+      if (entry.emissive) entry.material.emissive.copy(entry.emissive);
+      if (entry.intensity !== undefined) entry.material.emissiveIntensity = entry.intensity;
+    }
+  }
+
+  function flashHouse(index) {
+    const house = houses[index];
+    if (!house) return;
+    house.flashLeft = BOSS_HOUSE_FLASH_SECONDS;
+    for (const entry of house.materials) {
+      if (entry.color) entry.material.color.set(BOSS_HOUSE_FLASH_COLOR);
+      if (entry.emissive) entry.material.emissive.set(BOSS_HOUSE_FLASH_COLOR);
+      if (entry.intensity !== undefined) entry.material.emissiveIntensity = BOSS_HOUSE_FLASH_EMISSIVE;
+    }
+  }
+
+  function update(dt) {
+    for (const house of houses) {
+      if (!house || house.flashLeft <= 0) continue;
+      house.flashLeft = Math.max(0, house.flashLeft - dt);
+      if (house.flashLeft === 0) restore(house);
+    }
+  }
+
+  function reset() {
+    for (const house of houses) {
+      if (!house) continue;
+      house.flashLeft = 0;
+      restore(house);
+    }
+  }
+
+  return { flashHouse, update, reset };
 }

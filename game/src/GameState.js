@@ -1,3 +1,5 @@
+import { START_LIVES } from './config.js';
+
 export function createGameState() {
   return {
     mode: 'playing',
@@ -5,5 +7,12 @@ export function createGameState() {
     score: 0,
     kills: 0,
     survivalScore: 0,
+    lives: START_LIVES,
+    maxLives: START_LIVES,
+    hitInvulnerableLeft: 0,
   };
+}
+
+export function getDisplayedScore(state) {
+  return Math.floor(state.score);
 }

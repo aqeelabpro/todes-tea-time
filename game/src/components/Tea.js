@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {
-  ATTACK_EFFECT_SECONDS, GREEN_TEA_SECONDS, LEAF_BLINK_SECONDS, LEAF_DROP_CHANCE,
+  ATTACK_EFFECT_SECONDS, BREW_HUD, GREEN_TEA_SECONDS, LEAF_BLINK_SECONDS, LEAF_DROP_CHANCE,
   LEAF_LIFETIME_SECONDS, LEAF_VISUAL_SCALE, LEAF_HEIGHT, LEAF_BOB_HEIGHT,
-  MATCHA_RADIUS, PICKUP_RADIUS, SHIELD_INVULNERABILITY_SECONDS, SHIELD_RING_RADIUS,
+  MATCHA_HUD_SECONDS, MATCHA_RADIUS, PICKUP_RADIUS, SHIELD_DURATION, SHIELD_INVULNERABILITY_SECONDS, SHIELD_RING_RADIUS,
 } from '../config.js';
 
 function makeLeaf() {
@@ -34,19 +34,21 @@ function makeRing(radius, color) {
   return mesh;
 }
 
-export function createTea(scene, player, enemies, onChange) {
+export function createTea(scene, player, enemies, onChange, modifiers = {}) {
   const drops = [];
   const effects = [];
-  const shieldRing = makeRing(SHIELD_RING_RADIUS, '#e9efac');
+  const shieldRing = makeRing(SHIELD_RING_RADIUS, BREW_HUD.Chamomile.color);
   shieldRing.visible = false;
   scene.add(shieldRing);
   let greenTeaLeft = 0;
   let shield = false;
+  let shieldLeft = 0;
   let invulnerableLeft = 0;
+  let matchaNoticeLeft = 0;
   let lastBrew = '';
 
   function drop(position, guaranteed = false) {
-    if (!guaranteed && Math.random() >= LEAF_DROP_CHANCE) return;
+    if (!guaranteed && Math.random() >= (modifiers.getDropChance?.() ?? LEAF_DROP_CHANCE)) return;
     const mesh = makeLeaf();
     mesh.position.set(position.x, position.y, LEAF_HEIGHT);
     scene.add(mesh);
@@ -63,38 +65,54 @@ export function createTea(scene, player, enemies, onChange) {
 
   function brew(kind) {
     lastBrew = kind;
+    const center = player.group.getWorldPosition(new THREE.Vector3());
     if (kind === 'Green Tea') greenTeaLeft = GREEN_TEA_SECONDS;
     if (kind === 'Chamomile') {
       shield = true;
-      const center = player.group.getWorldPosition(new THREE.Vector3());
+      shieldLeft = SHIELD_DURATION;
       shieldRing.position.set(center.x, center.y, 0.25);
       shieldRing.visible = true;
     }
     if (kind === 'Matcha Burst') {
-      const center = player.group.getWorldPosition(new THREE.Vector3());
-      effect(MATCHA_RADIUS, '#b5ed70', center);
+      matchaNoticeLeft = MATCHA_HUD_SECONDS;
+      effect(MATCHA_RADIUS, BREW_HUD[kind].color, center);
+      let kills = 0;
       for (const enemy of [...enemies.enemies]) {
         const enemyPosition = enemy.group.getWorldPosition(new THREE.Vector3());
-        if (Math.hypot(enemyPosition.x - center.x, enemyPosition.y - center.y) <= MATCHA_RADIUS) enemies.remove(enemy);
+        if (Math.hypot(enemyPosition.x - center.x, enemyPosition.y - center.y) <= MATCHA_RADIUS && enemies.enemies.includes(enemy)) {
+          enemies.remove(enemy);
+          kills += 1;
+        }
       }
+      modifiers.onBrewEvent?.(kind, 'pickup', kills);
     }
+    effect(SHIELD_RING_RADIUS, BREW_HUD[kind].color, center);
+    if (kind !== 'Matcha Burst') modifiers.onBrewEvent?.(kind, 'pickup');
     onChange();
   }
 
   function update(dt, time) {
+    if (shield) {
+      shieldLeft = Math.max(0, shieldLeft - dt);
+      if (shieldLeft === 0) {
+        shield = false;
+        shieldRing.visible = false;
+      }
+    }
     if (shield) {
       const center = player.group.getWorldPosition(new THREE.Vector3());
       shieldRing.position.set(center.x, center.y, 0.25);
     }
     if (greenTeaLeft > 0) greenTeaLeft = Math.max(0, greenTeaLeft - dt);
     if (invulnerableLeft > 0) invulnerableLeft = Math.max(0, invulnerableLeft - dt);
+    if (matchaNoticeLeft > 0) matchaNoticeLeft = Math.max(0, matchaNoticeLeft - dt);
     for (let i = drops.length - 1; i >= 0; i--) {
       const item = drops[i];
       item.age += dt;
       item.mesh.rotation.z += dt * 1.2;
       item.mesh.position.z = LEAF_HEIGHT + Math.sin(time * 3 + item.phase) * LEAF_BOB_HEIGHT;
       item.mesh.visible = item.age < LEAF_LIFETIME_SECONDS - LEAF_BLINK_SECONDS || Math.floor(item.age * 8) % 2 === 0;
-      if (Math.hypot(item.mesh.position.x - player.group.position.x, item.mesh.position.y - player.group.position.y) <= PICKUP_RADIUS) {
+      if (Math.hypot(item.mesh.position.x - player.group.position.x, item.mesh.position.y - player.group.position.y) <= (modifiers.getPickupRadius?.() ?? PICKUP_RADIUS)) {
         const kind = ['Green Tea', 'Chamomile', 'Matcha Burst'][Math.floor(Math.random() * 3)];
         removeDrop(i);
         brew(kind);
@@ -128,9 +146,14 @@ export function createTea(scene, player, enemies, onChange) {
   }
 
   function contact(enemy) {
-    if (invulnerableLeft > 0) return 'safe';
+    if (invulnerableLeft > 0) {
+      enemies.remove(enemy);
+      onChange();
+      return 'safe';
+    }
     if (shield) {
       shield = false;
+      shieldLeft = 0;
       shieldRing.visible = false;
       invulnerableLeft = SHIELD_INVULNERABILITY_SECONDS;
       enemies.remove(enemy);
@@ -150,7 +173,9 @@ export function createTea(scene, player, enemies, onChange) {
     effects.length = 0;
     greenTeaLeft = 0;
     invulnerableLeft = 0;
+    matchaNoticeLeft = 0;
     shield = false;
+    shieldLeft = 0;
     shieldRing.visible = false;
     lastBrew = '';
     onChange();
@@ -160,7 +185,9 @@ export function createTea(scene, player, enemies, onChange) {
     drop, update, contact, reset, effect,
     get greenTeaLeft() { return greenTeaLeft; },
     get hasShield() { return shield; },
+    get shieldLeft() { return shieldLeft; },
     get invulnerableLeft() { return invulnerableLeft; },
+    get matchaNoticeLeft() { return matchaNoticeLeft; },
     get lastBrew() { return lastBrew; },
   };
 }

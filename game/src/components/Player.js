@@ -20,19 +20,21 @@ export function createPlayer(scene) {
   camera.position.set(...CAMERA_POSITION);
   camera.lookAt(0, 0, 0);
   group.add(camera);
+  const visual = new THREE.Group();
+  group.add(visual);
 
   const marker = new THREE.Mesh(
     new THREE.SphereGeometry(9, 16, 12),
     new THREE.MeshStandardMaterial({ color: '#7bbd59' }),
   );
   marker.position.z = 9;
-  group.add(marker);
+  visual.add(marker);
 
   new GLTFLoader().load('/models/tode.glb', ({ scene: model }) => {
-    group.remove(marker);
+    visual.remove(marker);
     model.rotation.x = Math.PI / 2;
     model.scale.setScalar(PLAYER_MODEL_SCALE);
-    group.add(model);
+    visual.add(model);
     groundModel(model);
   });
 
@@ -70,6 +72,7 @@ export function createPlayer(scene) {
     hop = null;
     facing = [0, 1];
     group.position.set(0, 0, 0);
+    visual.visible = true;
   }
-  return { group, camera, queueMove, update, reset, get facing() { return facing; } };
+  return { group, camera, queueMove, update, reset, setVisible: (visible) => { visual.visible = visible; }, get facing() { return facing; } };
 }

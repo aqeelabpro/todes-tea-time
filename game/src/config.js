@@ -25,6 +25,10 @@ export const ENEMY_WAYPOINT_RADIUS = 3;
 export const ENEMY_SPAWN_SECONDS = 2.7;
 export const ENEMY_LIMIT = 32;
 export const CONTACT_RADIUS = 21;
+export const START_LIVES = 3;
+export const MAX_LIVES = 5;
+export const HIT_INVULNERABILITY = 1.2;
+export const HIT_FLASH_SECONDS = 0.25;
 export const ATTACK_RADIUS = 45;
 export const ATTACK_COOLDOWN = 0.62;
 export const ATTACK_EFFECT_SECONDS = 0.35;
@@ -47,5 +51,33 @@ export const LEAF_BOB_HEIGHT = 2.4;
 export const SHIELD_RING_RADIUS = 15;
 export const GREEN_TEA_SECONDS = 6;
 export const GREEN_TEA_SPEED_MULTIPLIER = 1.4;
+export const SHIELD_DURATION = 10;
 export const SHIELD_INVULNERABILITY_SECONDS = 1;
-export const MATCHA_RADIUS = 90;
+export const INVULNERABILITY_BLINK_SECONDS = 0.1;
+export const MATCHA_RADIUS = 105;
+export const MATCHA_HUD_SECONDS = 1.5;
+export const MATCHA_HUD_FADE_SECONDS = 0.5;
+export const BREW_HUD = {
+  'Green Tea': { color: '#a7f075', icon: '❧', description: 'Faster hops' },
+  Chamomile: { color: '#ffe183', icon: '✿', description: 'Blocks the next hit' },
+  'Matcha Burst': { color: '#d9a4ff', icon: '✦', description: 'Blasts nearby enemies', result: (kills) => kills === 0 ? 'no enemies in range' : `${kills} ${kills === 1 ? 'enemy' : 'enemies'} blasted` },
+};
+export const UPGRADE_SCORE_STEP = 100;
+export const UPGRADE_SCORE_GROWTH = 50;
+export const UPGRADE_CARD_COUNT = 3;
+export const LONG_TONGUE_BONUS = 0.15;
+export const QUICK_TONGUE_REDUCTION = 0.12;
+export const LILY_HOP_BONUS = 0.10;
+export const TEA_MAGNET_MULTIPLIER = 2;
+export const LUCKY_LEAF_BONUS = 0.10;
+export const CHAIN_LASH_CHANCE = 0.30;
+export const CHAIN_LASH_RADIUS_MULTIPLIER = 0.55;
+export const UPGRADE_CAPS = {
+  longTongue: 5,
+  quickTongue: 5,
+  lilyHop: 5,
+  teaMagnet: 2,
+  luckyLeaf: 5,
+  chainLash: 3,
+  thickSkin: 2,
+};

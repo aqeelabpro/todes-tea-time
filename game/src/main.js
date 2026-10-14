@@ -13,6 +13,8 @@ import {
   SHAKE_HEART, SHAKE_STOMP, SHAKE_BOSS_STEP, BREW_HUD,
 } from './config.js';
 import { createRunStats } from './RunStats.js';
+import { createSave } from './components/Save.js';
+import { createAchievements } from './components/Achievements.js';
 import { createWorld, isBlocked } from './components/World.js';
 import { createPlayer } from './components/Player.js';
 import { createEnemies, firstBlockingHouse } from './components/Enemies.js';
@@ -32,21 +34,31 @@ const scene = new THREE.Scene();
 const world = createWorld(scene);
 const state = createGameState();
 const runStats = createRunStats();
+const save = createSave();
 let audio;
 const player = createPlayer(scene, () => audio?.jump());
 const effects = createEffects(scene, player.camera, player);
 const atmosphere = createAtmosphere(scene, renderer, world);
 audio = createAudio(player.camera, player.group);
 const hud = createHUD();
+hud.setSaveData(save.data);
+hud.onResetSave(() => { save.clear(); hud.setSaveData(save.data); hud.setOverlay('start', state); });
 hud.setMuted(audio.muted);
 hud.onMuteClick(() => { audio.gesture(); hud.setMuted(audio.toggleMute()); });
 hud.onStageChange(() => audio.stage());
 state.mode = 'start';
 hud.setOverlay('start', state);
+const achievements = createAchievements(save, (item) => {
+  hud.setSaveData(save.data);
+  hud.queueAchievement(item);
+  audio.achievement();
+});
 let tea;
 let upgrades;
 const enemies = createEnemies(scene, state, (position, enemy, cause) => {
-  runStats.recordKill(enemy.type);
+  runStats.recordKill(enemy.type, cause);
+  achievements.emit('enemyKilled', runStats.snapshot(state));
+  if (enemy.type === 'boss') achievements.emit('bossDefeated');
   effects.emit(enemy.type, position);
   effects.shake(...SHAKE_KILL);
   if (enemy.type === 'grunt') audio.gruntKill(position);
@@ -79,6 +91,7 @@ const enemies = createEnemies(scene, state, (position, enemy, cause) => {
   onBossFirstTelegraph: () => hud.showBossHint(),
   onBossCrash: (position, houseIndex) => {
     runStats.recordCrash();
+    achievements.emit('bossCrash');
     world.flashHouse(houseIndex);
     effects.emit('dust', position);
     effects.shake(BOSS_CRASH_SHAKE_DISTANCE, BOSS_CRASH_SHAKE_SECONDS);
@@ -114,6 +127,9 @@ tea = createTea(scene, player, enemies, () => hud.update(state, tea, enemies.bos
   getPickupRadius: () => upgrades.pickupRadius,
   onBrewEvent: (kind, event, detail) => {
     hud.onBrewEvent(kind, event, detail);
+    if (event === 'pickup') achievements.emit('brewActiveCountChanged', {
+      activeBrews: Number(tea.greenTeaLeft > 0) + Number(tea.hasShield) + Number(tea.matchaNoticeLeft > 0),
+    });
     if (kind === 'Matcha Burst' && event === 'pickup') {
       effects.emit('matcha', player.group.position);
       audio.matcha();
@@ -121,6 +137,7 @@ tea = createTea(scene, player, enemies, () => hud.update(state, tea, enemies.bos
   },
   onLeafCollected: (kind, position) => {
     runStats.recordLeaf();
+    achievements.emit('leafCollected', runStats.snapshot(state));
     effects.emit('leaf', position, BREW_HUD[kind].color);
     audio.leafPickup(kind);
   },
@@ -132,7 +149,11 @@ upgrades = createUpgrades(state, (position, radius) => {
     const enemyPosition = enemy.group.getWorldPosition(new THREE.Vector3());
     if (Math.hypot(enemyPosition.x - position.x, enemyPosition.y - position.y) - enemy.radius <= radius) enemies.damage(enemy, 1, position);
   }
-}, (name) => { runStats.recordUpgrade(name); audio.upgradePick(); }, () => audio.upgradeOpen());
+}, (name) => {
+  runStats.recordUpgrade(name);
+  achievements.emit('upgradePicked', runStats.snapshot(state));
+  audio.upgradePick();
+}, () => audio.upgradeOpen());
 const tongue = createTongue(scene, player, enemies, upgrades, {
   onTongueFired: () => audio.tongueShot(),
   onTongueEat: (position) => { audio.tongueEat(); effects.emit('tongue', position); },
@@ -161,6 +182,8 @@ resize();
 
 function gameOver() {
   const finishedStats = runStats.snapshot(state);
+  const savedResult = save.recordRun(finishedStats);
+  hud.setSaveData(save.data);
   state.bossRemainingPercent = enemies.boss ? Math.ceil(enemies.boss.hp / enemies.boss.maxHp * 100) : null;
   state.mode = 'over';
   state.endless = false;
@@ -184,11 +207,13 @@ function gameOver() {
   attackCooldown = 0;
   hud.setTongueStatus(tongue.cooldownLeft, tongue.cooldown);
   hud.update(state, tea, enemies.boss);
-  hud.setOverlay('over', state, finishedStats);
+  hud.setOverlay('over', state, finishedStats, savedResult);
   runStats.reset();
 }
 
 function reset() {
+  save.resetRun();
+  hud.clearAchievements();
   tongue.reset();
   enemies.clear(true);
   effects.reset();
@@ -214,9 +239,12 @@ function showVictory(fromBoss = false) {
   if (state.victoryShown || state.mode !== 'playing') return;
   state.victoryShown = true;
   state.mode = 'victory';
+  const finishedStats = runStats.snapshot(state);
+  const savedResult = save.recordRun(finishedStats, true);
+  hud.setSaveData(save.data);
   if (!fromBoss) audio.victory();
   hud.update(state, tea, enemies.boss);
-  hud.setOverlay('victory', state, runStats.snapshot(state));
+  hud.setOverlay('victory', state, finishedStats, savedResult);
 }
 
 function chooseVictory(choice) {
@@ -311,6 +339,7 @@ addEventListener('keydown', (event) => {
       return;
     }
     if (event.code === 'KeyT') { audio.debugSequence(); effects.debugSequence(); return; }
+    if (event.code === 'KeyK') { achievements.debugRandom(); return; }
     const debugType = { KeyB: 'boss', KeyN: 'brute' }[event.code];
     if (debugType) {
       enemies.debugSpawn(debugType, player.group.position, player.facing);
@@ -334,6 +363,8 @@ function frame() {
     const gameDt = effects.step(dt);
     state.time += gameDt;
     runStats.setTime(state.time);
+    achievements.emit('timeAdvanced', { unhurtTime: runStats.unhurtTime });
+    hud.tickAchievements(gameDt);
     const oldSurvival = state.survivalScore;
     state.survivalScore = Math.floor(state.time * SURVIVAL_SCORE_PER_SECOND);
     state.score += state.survivalScore - oldSurvival;

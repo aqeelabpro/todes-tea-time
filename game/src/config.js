@@ -342,6 +342,7 @@ export const SOUND_PRESETS = {
   bossRoar: { notes: [[68, 44, 1.5, 0.24, 'sawtooth']], noise: [1.35, 0.18, 180, 1250, 'bandpass'] },
   bossStep: { notes: [[63, 39, 0.27, 0.24, 'sine']] },
   bossHit: { notes: [[140, 70, 0.18, 0.22, 'triangle']] },
+  achievement: { notes: [[523.25, 523.25, 0.22, 0.13, 'sine'], [659.25, 659.25, 0.28, 0.13, 'sine', 0.12], [783.99, 783.99, 0.38, 0.15, 'sine', 0.24]] },
   bossDefeat: { notes: [[61, 34, 1.1, 0.24, 'sawtooth']] },
 };
 export const BREW_NOTE_MULTIPLIERS = { 'Green Tea': 1, Chamomile: 1.19, 'Matcha Burst': 0.85 };
@@ -362,3 +363,19 @@ export const CRICKET_PITCH_FALL = 0.96;
 export const CRICKET_PULSE_GAIN = 0.11;
 export const EFFECT_DEBUG_SEQUENCE = ['grunt', 'brute', 'tongue', 'leaf', 'matcha', 'shield', 'dust', 'stomp', 'boss'];
 export const EFFECT_DEBUG_RING_RADIUS = 55;
+
+// Phase 5 save data and achievement presentation.
+export const SAVE_STORAGE_KEY = 'todeTeaTime.v1';
+export const ACHIEVEMENT_TOAST_SECONDS = 3;
+export const ACHIEVEMENT_TOAST_EXIT_SECONDS = 0.35;
+export const ACHIEVEMENT_BADGE_PULSE_SECONDS = 0.7;
+export const ACHIEVEMENTS = [
+  { id: 'first-sip', name: 'First Sip', description: 'Collect your first tea leaf.', goal: 1 },
+  { id: 'frog-chef', name: 'Frog Chef', description: 'Eat 10 Grunts with the tongue in one run.', goal: 10 },
+  { id: 'centurion', name: 'Centurion', description: 'Reach 100 kills in one run.', goal: 100 },
+  { id: 'tea-party', name: 'Tea Party', description: 'Have all 3 brews active together.', goal: 3 },
+  { id: 'untouchable', name: 'Untouchable', description: 'Survive 60 seconds without losing a heart.', goal: 60 },
+  { id: 'crash-test', name: 'Crash Test', description: 'Make the boss crash into a house.', goal: 1 },
+  { id: 'monster-king-slayer', name: 'Monster King Slayer', description: 'Defeat the boss.', goal: 1 },
+  { id: 'fully-brewed', name: 'Fully Brewed', description: 'Take 6 upgrade cards in one run.', goal: 6 },
+];

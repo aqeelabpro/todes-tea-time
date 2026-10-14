@@ -265,5 +265,6 @@ export function createAudio(camera, player) {
     bossRoar: (position) => play('bossRoar', position),
     bossStep: (position) => play('bossStep', position),
     bossHit: (position) => play('bossHit', position),
+    achievement: () => play('achievement'),
   };
 }

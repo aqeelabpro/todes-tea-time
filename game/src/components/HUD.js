@@ -6,6 +6,8 @@ import {
   SHIELD_DURATION, STAGES, STAGE_PULSE_SECONDS, VICTORY_STEAM_SECONDS,
   HUD_PULSE_SECONDS, HUD_HEART_SHAKE_SECONDS, HUD_BREW_SLIDE_SECONDS,
   HUD_BOSS_HIT_SECONDS, HUD_BOSS_PHASE_SECONDS, START_STORY, START_CONTROLS,
+  ACHIEVEMENTS, ACHIEVEMENT_TOAST_SECONDS, ACHIEVEMENT_TOAST_EXIT_SECONDS,
+  ACHIEVEMENT_BADGE_PULSE_SECONDS,
 } from '../config.js';
 import { getDisplayedScore } from '../GameState.js';
 
@@ -14,16 +16,17 @@ export function createHUD() {
   root.className = 'hud';
   root.innerHTML = `
     <div id="hit-flash" class="hit-flash"></div>
-    <div class="hud-top"><div class="title-block"><div class="title">Tode's Tea Time</div><div id="hearts" class="hearts" aria-label="Lives"></div></div><div class="stats"><span id="score">Score 0</span><span id="stage">Stage 1</span><span id="endless" class="hidden">Endless</span><span id="kills">Kills 0</span><span id="tongue-meter" class="tongue-meter ready" role="progressbar" aria-label="Tongue cooldown" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><strong>E</strong><span class="tongue-meter-track"><span class="tongue-meter-fill"></span></span></span><button id="mute" class="mute-button" type="button" aria-label="Mute audio" title="M: mute">♫</button></div></div>
+    <div class="hud-top"><div class="title-block"><div class="title">Tode's Tea Time</div><div id="hearts" class="hearts" aria-label="Lives"></div></div><div class="stats"><div class="score-stack"><div class="score-line"><span id="score">Score 0</span><span id="kills">Kills 0</span></div><small id="best-score">Best: 0</small></div><span id="stage">Stage 1</span><span id="endless" class="hidden">Endless</span><span id="tongue-meter" class="tongue-meter ready" role="progressbar" aria-label="Tongue cooldown" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><strong>E</strong><span class="tongue-meter-track"><span class="tongue-meter-fill"></span></span></span><button id="mute" class="mute-button" type="button" aria-label="Mute audio" title="M: mute">♫</button></div></div>
     <div id="boss-health" class="boss-health hidden"><div class="boss-health-heading"><strong>${BOSS_HUD_NAME}</strong><span id="boss-phase"></span></div><div class="boss-health-track"><div class="boss-health-fill"></div><i class="boss-tick tick-one"></i><i class="boss-tick tick-two"></i></div><div id="boss-hint" class="boss-hint hidden">${BOSS_CRASH_HINT}</div></div>
     <div id="brews" class="brews"></div>
     <div class="controls">WASD / arrows · hop &nbsp; Space · attack &nbsp; E · tongue &nbsp; P · pause &nbsp; M · mute</div>
-    <div id="overlay" class="overlay hidden"><div class="overlay-card"><h1 id="overlay-title"></h1><p id="overlay-detail"></p><div id="game-over-stats" class="run-stats hidden"></div></div></div>
+    <div id="achievement-toast" class="achievement-toast hidden" role="status" aria-live="polite"><svg class="toast-trophy" viewBox="0 0 32 32" aria-hidden="true"><path d="M8 4h16v10c0 6-3 9-8 9s-8-3-8-9V4ZM8 8H4v5c0 4 2 6 6 6M24 8h4v5c0 4-2 6-6 6M16 23v5m-7 0h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong id="toast-name"></strong><small id="toast-description"></small></span></div>
+    <div id="overlay" class="overlay hidden"><div class="overlay-card"><h1 id="overlay-title"></h1><p id="overlay-detail"></p><div id="overlay-record" class="record-badge hidden">New high score!</div><div id="game-over-stats" class="run-stats hidden"></div><div id="achievement-panel" class="achievement-panel hidden"></div><button id="reset-saved-data" class="reset-saved-data hidden" type="button">Reset saved data</button></div></div>
     <div id="victory" class="victory hidden"><div class="victory-card">
       <h1>Victory!</h1>
       <div class="teacup" aria-hidden="true"><span class="steam steam-one"></span><span class="steam steam-two"></span><span class="steam steam-three"></span><span class="cup-handle"></span><span class="cup-body"></span><span class="cup-saucer"></span></div>
       <p>The monsters are gone. Tode finally enjoys his tea in peace.</p>
-      <div id="victory-stats" class="run-stats"></div>
+      <div id="victory-record" class="record-badge hidden">New high score!</div><div id="victory-stats" class="run-stats"></div>
       <div class="victory-actions"><button type="button" data-victory-choice="continue">Enter: Keep playing (Endless Mode)</button><button type="button" data-victory-choice="restart">Space: Play again</button></div>
     </div></div>
   `;
@@ -44,6 +47,8 @@ export function createHUD() {
   root.style.setProperty('--hud-brew-seconds', `${HUD_BREW_SLIDE_SECONDS}s`);
   root.style.setProperty('--hud-boss-hit-seconds', `${HUD_BOSS_HIT_SECONDS}s`);
   root.style.setProperty('--hud-boss-phase-seconds', `${HUD_BOSS_PHASE_SECONDS}s`);
+  root.style.setProperty('--toast-transition-seconds', `${ACHIEVEMENT_TOAST_EXIT_SECONDS}s`);
+  root.style.setProperty('--record-pulse-seconds', `${ACHIEVEMENT_BADGE_PULSE_SECONDS}s`);
   const tongueMeter = root.querySelector('#tongue-meter');
   const tongueFill = tongueMeter.querySelector('.tongue-meter-fill');
   const hearts = root.querySelector('#hearts');
@@ -60,6 +65,29 @@ export function createHUD() {
   victory.style.setProperty('--steam-seconds', `${VICTORY_STEAM_SECONDS}s`);
   const gameOverStats = root.querySelector('#game-over-stats');
   const victoryStats = root.querySelector('#victory-stats');
+  const bestScoreLabel = root.querySelector('#best-score');
+  const achievementPanel = root.querySelector('#achievement-panel');
+  const resetSavedButton = root.querySelector('#reset-saved-data');
+  const overlayRecord = root.querySelector('#overlay-record');
+  const victoryRecord = root.querySelector('#victory-record');
+  const toast = root.querySelector('#achievement-toast');
+  const toastName = root.querySelector('#toast-name');
+  const toastDescription = root.querySelector('#toast-description');
+  let saveData = { bestScore: 0, achievements: [] };
+  let resetSave = () => {};
+  let resetConfirm = false;
+  const toastQueue = [];
+  let toastLeft = 0;
+  resetSavedButton.addEventListener('click', () => {
+    if (!resetConfirm) {
+      resetConfirm = true;
+      resetSavedButton.textContent = 'Press again to confirm';
+      return;
+    }
+    resetSave();
+    resetConfirm = false;
+    resetSavedButton.textContent = 'Reset saved data';
+  });
   let victoryChoice = () => {};
   victory.addEventListener('click', (event) => {
     const button = event.target.closest('[data-victory-choice]');
@@ -81,6 +109,41 @@ export function createHUD() {
   function setMuted(muted) {
     muteButton.textContent = muted ? '♪̸' : '♫';
     muteButton.setAttribute('aria-label', muted ? 'Unmute audio' : 'Mute audio');
+  }
+
+  function setSaveData(data) {
+    saveData = data;
+    bestScoreLabel.textContent = `Best: ${data.bestScore}`;
+  }
+
+  function showNextToast() {
+    const item = toastQueue.shift();
+    if (!item) { toast.classList.add('hidden'); return; }
+    toastName.textContent = item.name;
+    toastDescription.textContent = item.description;
+    toastLeft = ACHIEVEMENT_TOAST_SECONDS + 2 * ACHIEVEMENT_TOAST_EXIT_SECONDS;
+    toast.classList.remove('hidden', 'toast-leaving', 'toast-entering');
+    void toast.offsetWidth;
+    toast.classList.add('toast-entering');
+  }
+
+  function queueAchievement(item) {
+    toastQueue.push(item);
+    if (toast.classList.contains('hidden')) showNextToast();
+  }
+
+  function tickAchievements(dt) {
+    if (toastLeft <= 0) return;
+    toastLeft = Math.max(0, toastLeft - dt);
+    if (toastLeft <= ACHIEVEMENT_TOAST_EXIT_SECONDS) toast.classList.add('toast-leaving');
+    if (toastLeft === 0) showNextToast();
+  }
+
+  function clearAchievements() {
+    toastQueue.length = 0;
+    toastLeft = 0;
+    toast.classList.add('hidden');
+    toast.classList.remove('toast-entering', 'toast-leaving');
   }
 
   function resetJuice() {
@@ -181,6 +244,7 @@ export function createHUD() {
     }
     previousBossHp = boss?.hp ?? null;
     previousBossPhase = boss?.phase ?? null;
+    root.classList.toggle('boss-visible', Boolean(boss));
     if (previousHearts != null && state.lives < previousHearts) pulse(hearts, 'heart-shake');
     previousHearts = state.lives;
     hearts.setAttribute('aria-label', `${state.lives} of ${state.maxLives} hearts`);
@@ -210,7 +274,7 @@ export function createHUD() {
     }
   }
 
-  function renderRunStats(target, stats) {
+  function renderRunStats(target, stats, bestScore = saveData.bestScore) {
     target.replaceChildren();
     if (!stats) return;
     const elapsed = Math.floor(stats.time);
@@ -218,7 +282,7 @@ export function createHUD() {
     const upgrades = stats.upgradesChosen.length
       ? stats.upgradesChosen.map(({ name, count }) => `${name} ×${count}`).join(', ') : 'None';
     for (const [label, value] of [
-      ['Final score', stats.score], ['Kills', stats.kills], ['Time survived', time],
+      ['Final score', stats.score], ['Best score', bestScore], ['Kills', stats.kills], ['Time survived', time],
       ['Hearts left', stats.heartsLeft], ['Tea leaves collected', stats.leavesCollected],
       ['Bosses defeated', stats.bossesDefeated], ['Damage taken', stats.damageTaken],
       ['Bosses crashed', stats.bossesCrashed],
@@ -235,20 +299,48 @@ export function createHUD() {
     }
   }
 
-  function setOverlay(mode, state, stats = null) {
+  function renderAchievements() {
+    achievementPanel.replaceChildren();
+    const heading = document.createElement('strong');
+    heading.textContent = `Achievements ${saveData.achievements.length}/${ACHIEVEMENTS.length}`;
+    achievementPanel.append(heading);
+    const list = document.createElement('div');
+    list.className = 'achievement-grid';
+    const unlocked = new Set(saveData.achievements.map(({ id }) => id));
+    for (const item of ACHIEVEMENTS) {
+      const badge = document.createElement('div');
+      badge.className = `achievement-badge ${unlocked.has(item.id) ? 'unlocked' : 'locked'}`;
+      const name = document.createElement('strong');
+      const description = document.createElement('small');
+      name.textContent = `${unlocked.has(item.id) ? '★' : '☆'} ${item.name}`;
+      description.textContent = item.description;
+      badge.append(name, description);
+      list.append(badge);
+    }
+    achievementPanel.append(list);
+  }
+
+  function setOverlay(mode, state, stats = null, result = null) {
     setFrozen(mode !== 'playing');
+    if (mode === 'victory' || mode === 'over') toast.classList.remove('toast-entering', 'toast-leaving');
     overlay.classList.toggle('hidden', mode !== 'paused' && mode !== 'over' && mode !== 'start');
     victory.classList.toggle('hidden', mode !== 'victory');
-    if (mode === 'victory') renderRunStats(victoryStats, stats);
+    achievementPanel.classList.toggle('hidden', mode !== 'start' && mode !== 'over');
+    resetSavedButton.classList.toggle('hidden', mode !== 'start');
+    overlayRecord.classList.toggle('hidden', mode !== 'over' || !result?.newHighScore);
+    victoryRecord.classList.toggle('hidden', mode !== 'victory' || !result?.newHighScore);
+    if (mode !== 'start') { resetConfirm = false; resetSavedButton.textContent = 'Reset saved data'; }
+    if (mode === 'start' || mode === 'over') renderAchievements();
+    if (mode === 'victory') renderRunStats(victoryStats, stats, result?.bestScore);
     if (mode === 'over') {
       root.querySelector('#overlay-title').textContent = 'Game Over';
       const bossRemaining = state.bossRemainingPercent == null ? '' : ` · Boss HP ${state.bossRemainingPercent}%`;
       root.querySelector('#overlay-detail').textContent = `Score ${getDisplayedScore(state)} · ${state.kills} kills${bossRemaining} · Press Space to reset`;
-      renderRunStats(gameOverStats, stats);
+      renderRunStats(gameOverStats, stats, result?.bestScore);
       gameOverStats.classList.remove('hidden');
     } else if (mode === 'start') {
       root.querySelector('#overlay-title').textContent = "Tode's Tea Time";
-      root.querySelector('#overlay-detail').innerHTML = `${START_STORY}<br>${START_CONTROLS}<br><strong>Press any key to start</strong>`;
+      root.querySelector('#overlay-detail').innerHTML = `${START_STORY}<br>${START_CONTROLS}<br>Best: ${saveData.bestScore} · Achievements ${saveData.achievements.length}/${ACHIEVEMENTS.length}<br><strong>Press any key to start</strong>`;
       gameOverStats.classList.add('hidden');
     } else if (mode === 'paused') {
       root.querySelector('#overlay-title').textContent = 'Paused';
@@ -261,6 +353,8 @@ export function createHUD() {
   function setFrozen(frozen) { root.classList.toggle('is-frozen', frozen); }
   return { update, setOverlay, onBrewEvent, clearBrews, flashHit, tickHitFlash, clearHitFlash, setTongueStatus,
     showBossHint, tickBossHint, clearBossHint, setMuted, hitBoss, flashBossPhase, bossBonusPulse, resetJuice, setFrozen,
+    setSaveData, queueAchievement, tickAchievements, clearAchievements,
+    onResetSave(callback) { resetSave = callback; },
     onMuteClick(callback) { muteButton.addEventListener('click', callback); },
     onStageChange(callback) { onStageChange = callback; },
     onVictoryChoice(callback) { victoryChoice = callback; } };

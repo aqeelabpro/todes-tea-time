@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import './style.css';
-import { createGameState, getDisplayedScore } from './GameState.js';
+import { createGameState } from './GameState.js';
 import {
-  BOSS_DASH_DAMAGE, BOSS_STOMP_DAMAGE, BOSS_LEAF_OFFSETS, BOSS_PHASE_BEAT_SCALE,
+  BOSS_DASH_DAMAGE, BOSS_STOMP_DAMAGE, BOSS_LEAF_OFFSETS, BOSS_PHASE_LEAF_OFFSETS, BOSS_PHASE_BEAT_SCALE,
   BOSS_CONTACT_RADIUS,
   BOSS_PHASE_SHAKE_SECONDS, BOSS_PHASE_SHAKE_DISTANCE, BOSS_DEFEAT_SHAKE_SECONDS,
   BOSS_DEFEAT_SHAKE_DISTANCE, ENEMY_TYPES, GREEN_TEA_SPEED_MULTIPLIER,
@@ -21,7 +21,6 @@ import { createEnemies, firstBlockingHouse } from './components/Enemies.js';
 import { createTea } from './components/Tea.js';
 import { createHUD } from './components/HUD.js';
 import { createUpgrades } from './components/Upgrades.js';
-import { createUpgradeDebug } from './components/UpgradeDebug.js';
 import { createTongue } from './components/Tongue.js';
 import { createEffects } from './components/Effects.js';
 import { createAudio } from './components/Audio.js';
@@ -66,7 +65,16 @@ const enemies = createEnemies(scene, state, (position, enemy, cause) => {
   if (enemy.type === 'boss') audio.bossDefeat(position);
   if (enemy.type === 'boss') hud.bossBonusPulse();
   if (enemy.type === 'boss') {
-    for (const [x, y] of BOSS_LEAF_OFFSETS) tea.drop(new THREE.Vector3(position.x + x, position.y + y, 0), true);
+    const used = new Set();
+    for (const [x, y] of BOSS_LEAF_OFFSETS) {
+      const [leafX, leafY] = [[x, y], ...BOSS_PHASE_LEAF_OFFSETS].find(([dx, dy]) => {
+        const key = `${dx},${dy}`;
+        if (used.has(key) || isBlocked(position.x + dx, position.y + dy)) return false;
+        used.add(key);
+        return true;
+      }) ?? [0, 0];
+      tea.drop(new THREE.Vector3(position.x + leafX, position.y + leafY, 0), true);
+    }
   } else {
     const dropChance = ENEMY_TYPES[enemy.type].leafDropChance * (cause === 'tongue' ? TONGUE_LEAF_BONUS : 1);
     tea.drop(position, false, dropChance);
@@ -167,11 +175,6 @@ function refreshScoreAndCheckUpgrades() {
   upgrades.checkThresholds();
 }
 
-const upgradeDebug = import.meta.env.DEV ? createUpgradeDebug(state, upgrades, () => {
-  state.score = Math.max(getDisplayedScore(state), upgrades.nextThreshold);
-  refreshScoreAndCheckUpgrades();
-}) : null;
-
 function resize() {
   renderer.setSize(innerWidth, innerHeight);
   player.camera.aspect = innerWidth / innerHeight;
@@ -194,8 +197,8 @@ function gameOver() {
   tongue.reset();
   enemies.clear();
   effects.reset();
-  audio.gameOver();
   audio.reset();
+  audio.gameOver();
   atmosphere.reset();
   world.reset();
   hud.clearBossHint();
@@ -253,6 +256,7 @@ function chooseVictory(choice) {
   if (choice === 'continue') {
     state.endless = true;
     state.mode = 'playing';
+    hud.clearAchievements();
     hud.update(state, tea, enemies.boss);
     hud.setOverlay('playing', state);
   }
@@ -294,6 +298,15 @@ function enemyTouchesPlayer(enemy) {
 
 const consumedKeys = new Set();
 addEventListener('keyup', (event) => consumedKeys.delete(event.code));
+function pauseOnFocusLoss() {
+  consumedKeys.clear();
+  if (state.mode !== 'playing') return;
+  state.mode = 'paused';
+  hud.setOverlay('paused', state);
+  audio.update(0, state.mode, enemies.stage.number, Boolean(enemies.boss));
+}
+addEventListener('blur', pauseOnFocusLoss);
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseOnFocusLoss(); });
 addEventListener('keydown', (event) => {
   audio.gesture();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code) ||
@@ -331,22 +344,12 @@ addEventListener('keydown', (event) => {
     hud.setOverlay(state.mode, state);
     return;
   }
-  if (state.mode === 'over' && event.code === 'Space') return reset();
-  if (state.mode !== 'playing') return;
-  if (import.meta.env.DEV && !event.repeat) {
-    if (event.code === 'KeyV') {
-      showVictory();
-      return;
-    }
-    if (event.code === 'KeyT') { audio.debugSequence(); effects.debugSequence(); return; }
-    if (event.code === 'KeyK') { achievements.debugRandom(); return; }
-    const debugType = { KeyB: 'boss', KeyN: 'brute' }[event.code];
-    if (debugType) {
-      enemies.debugSpawn(debugType, player.group.position, player.facing);
-      hud.update(state, tea, enemies.boss);
-      return;
-    }
+  if (state.mode === 'over' && event.code === 'Space' && !event.repeat) {
+    consumedKeys.add(event.code);
+    reset();
+    return;
   }
+  if (state.mode !== 'playing') return;
   if (event.code === 'Space') attack();
   else if (event.code === 'KeyE') {
     tongue.fire();
@@ -377,7 +380,7 @@ function frame() {
       player.update(gameDt, (tea.greenTeaLeft > 0 ? GREEN_TEA_SPEED_MULTIPLIER : 1) * upgrades.moveMultiplier);
       tongue.update(gameDt);
       hud.setTongueStatus(tongue.cooldownLeft, tongue.cooldown);
-      world.update(gameDt);
+      world.update(gameDt, player.camera, player.group.position, enemies.enemies, tea.drops);
       enemies.update(gameDt, player.group.position);
       tea.update(gameDt, state.time);
       atmosphere.update(gameDt, enemies.stage.number, Boolean(enemies.boss));
@@ -443,7 +446,6 @@ function frame() {
   if (state.mode === 'over') hud.tickHitFlash(dt);
   audio.update(state.mode === 'playing' ? dt : 0, state.mode, enemies.stage.number, Boolean(enemies.boss));
   hud.setFrozen(state.mode !== 'playing');
-  upgradeDebug?.update();
   renderer.render(scene, player.camera);
 }
 requestAnimationFrame(frame);

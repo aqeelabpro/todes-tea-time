@@ -15,7 +15,7 @@ import {
   BRUTE_ATTACK_RECOVERY, ENEMY_HIT_SQUASH, STAGES, STAGE_THREE_BRUTE_SHARE_CAP,
   STAGE_THREE_BRUTE_SHARE_GROWTH, STAGE_THREE_BRUTE_SHARE_SCORE_STEP,
   BRUTE_INTRO_COOLDOWN,
-  DEBUG_ENEMY_SPAWN_DISTANCES, DIFFICULTY_SCORE_INTERVAL, DIFFICULTY_SPEED_STEP,
+  DIFFICULTY_SCORE_INTERVAL, DIFFICULTY_SPEED_STEP,
   ENEMY_CONTACT_CLEARANCE, ENEMY_HIT_FLASH_EMISSIVE, ENEMY_HIT_FLASH_SECONDS,
   ENEMY_KNOCKBACK_STEP, ENEMY_PLACEHOLDER_RADIUS_FACTOR,
   ENEMY_LIMIT, ENEMY_RADIUS, ENEMY_SEPARATION_DISTANCE, ENEMY_SEPARATION_STRENGTH,
@@ -238,24 +238,6 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
     const growth = current.number === 3
       ? Math.floor((state.score - current.score) / STAGE_THREE_BRUTE_SHARE_SCORE_STEP) * STAGE_THREE_BRUTE_SHARE_GROWTH : 0;
     return Math.random() < Math.min(STAGE_THREE_BRUTE_SHARE_CAP, current.bruteShare + growth) ? 'brute' : 'grunt';
-  }
-
-  function debugSpawn(type, playerPosition, facing) {
-    if (!ENEMY_TYPES[type] || (type === 'boss' && boss)) return null;
-    const directions = [
-      [-facing[0], -facing[1]], [facing[1], -facing[0]],
-      [-facing[1], facing[0]], [facing[0], facing[1]],
-    ];
-    for (const [dx, dy] of directions) {
-      for (const distance of DEBUG_ENEMY_SPAWN_DISTANCES) {
-        const enemy = spawnAt(type, [
-          playerPosition.x + dx * distance,
-          playerPosition.y + dy * distance,
-        ]);
-        if (enemy) return enemy;
-      }
-    }
-    return type === 'boss' ? cornerSpawn(type) : null;
   }
 
   function canMove(enemy, x, y) {
@@ -620,6 +602,6 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
     if (spawnAtStart) cornerSpawn('grunt');
   }
   cornerSpawn('grunt');
-  return { enemies, update, remove, damage, contactKnockback, clear, debugSpawn,
+  return { enemies, update, remove, damage, contactKnockback, clear,
     get boss() { return boss; }, get stage() { return stage(); } };
 }

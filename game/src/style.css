@@ -89,7 +89,7 @@ body { margin: 0; overflow: hidden; font-family: Trebuchet MS, Verdana, sans-ser
 .victory-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; margin-top: 1.1rem; }
 .victory-actions button { padding: .65rem .85rem; color: #f8f5dc; background: #38664a; border: 2px solid #b6d489; border-radius: 9px; font: inherit; font-weight: 700; cursor: pointer; }
 .victory-actions button:hover, .victory-actions button:focus-visible { background: #477b54; border-color: #f4eaa8; outline: none; }
-.owned-upgrades { position: absolute; right: 1rem; top: 4.4rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; max-width: min(540px, 60vw); }
+.owned-upgrades { position: absolute; right: 1rem; top: 4.4rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; max-width: min(400px, 35vw); }
 .owned-upgrade { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .45rem; background: #284a38df; border: 1px solid #b6d489; border-radius: 8px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
 .owned-upgrade svg { width: 17px; height: 17px; fill: none; stroke: #d8efa7; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .upgrade-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 1rem; background: #14241ae3; pointer-events: auto; }
@@ -106,9 +106,6 @@ body { margin: 0; overflow: hidden; font-family: Trebuchet MS, Verdana, sans-ser
 .upgrade-card small { color: #f8f5dc; font-size: .85rem; }
 .upgrade-key { position: absolute; top: .5rem; left: .6rem; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; background: #1f4436; border-radius: 6px; font-weight: 700; }
 .upgrade-icon svg { width: 48px; height: 48px; fill: none; stroke: #d8efa7; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.upgrade-debug-button { position: absolute; right: 1rem; bottom: 1rem; padding: .55rem .8rem; color: #f4eaa8; background: #284a38; border: 2px solid #b6d489; border-radius: 8px; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; pointer-events: auto; }
-.upgrade-debug-button:hover, .upgrade-debug-button:focus-visible { background: #38664a; outline: none; }
-.upgrade-debug-button.hidden { display: none; }
 .mute-button { pointer-events: auto; border: 0; background: transparent; color: #f4eaa8; font: inherit; cursor: pointer; }
 .hud-pulse { animation: hud-pulse var(--hud-pulse-seconds) ease-out; }
 .hud-pulse-strong { animation: hud-pulse-strong var(--hud-pulse-seconds) ease-out; }

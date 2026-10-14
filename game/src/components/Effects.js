@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import {
   ATTACK_EFFECT_SECONDS, CAMERA_POSITION, EFFECT_RING_HEIGHT, EFFECT_RING_OPACITY,
-  AUDIO_DEBUG_STEP_SECONDS, EFFECT_DEBUG_SEQUENCE, EFFECT_DEBUG_RING_RADIUS,
-  EFFECT_RING_SEGMENTS, EFFECT_RING_THICKNESS, HITSTOP_BOSS_SECONDS,
+  EFFECT_RING_SEGMENTS, EFFECT_RING_THICKNESS, GROUND_EFFECT_RENDER_ORDER, HITSTOP_BOSS_SECONDS,
   HITSTOP_BRUTE_SECONDS, PARTICLE_CAP, PARTICLE_GRAVITY, PARTICLE_HEIGHT,
   PARTICLE_POINT_SIZE, PARTICLE_PRESETS, PARTICLE_SPEED_VARIATION,
   PLAYER_HIT_TINT_SECONDS, SCREEN_SHAKE_ENABLED, SPACE_RING_END_SCALE,
@@ -33,8 +32,6 @@ export function createEffects(scene, camera, player) {
   let slowScale = 1;
   let hitstopLeft = 0;
   let tintLeft = 0;
-  let debugIndex = -1;
-  let debugClock = 0;
 
   function shake(power, duration) {
     if (!SCREEN_SHAKE_ENABLED) return;
@@ -82,10 +79,11 @@ export function createEffects(scene, camera, player) {
       new THREE.RingGeometry(radius - EFFECT_RING_THICKNESS, radius, EFFECT_RING_SEGMENTS),
       new THREE.MeshBasicMaterial({
         color, transparent: true, opacity: EFFECT_RING_OPACITY,
-        depthWrite: false, side: THREE.DoubleSide,
+        depthWrite: false, depthTest: false, side: THREE.DoubleSide,
       }),
     );
     mesh.position.set(center.x, center.y, EFFECT_RING_HEIGHT);
+    mesh.renderOrder = GROUND_EFFECT_RENDER_ORDER;
     mesh.scale.setScalar(space ? SPACE_RING_START_SCALE : 0.05);
     scene.add(mesh);
     rings.push({ mesh, age: 0, duration: space ? SPACE_RING_SECONDS : ATTACK_EFFECT_SECONDS, space });
@@ -153,17 +151,6 @@ export function createEffects(scene, camera, player) {
     const scale = slowLeft > 0 ? slowScale : 1;
     slowLeft = Math.max(0, slowLeft - realDt);
     const simDt = stopped ? 0 : realDt * scale;
-    if (debugIndex >= 0) {
-      debugClock -= simDt;
-      if (debugClock <= 0) {
-        const kind = EFFECT_DEBUG_SEQUENCE[debugIndex++];
-        const center = player.group.getWorldPosition(new THREE.Vector3());
-        emit(kind, center);
-        if (kind === 'matcha') ring(center, EFFECT_DEBUG_RING_RADIUS, PARTICLE_PRESETS.matcha.color);
-        if (debugIndex >= EFFECT_DEBUG_SEQUENCE.length) debugIndex = -1;
-        debugClock = AUDIO_DEBUG_STEP_SECONDS;
-      }
-    }
     updateVisual(simDt, realDt);
     return simDt;
   }
@@ -184,8 +171,6 @@ export function createEffects(scene, camera, player) {
     slowLeft = 0;
     hitstopLeft = 0;
     tintLeft = 0;
-    debugIndex = -1;
-    debugClock = 0;
     player.setHitTint(0);
     camera.position.set(...CAMERA_POSITION);
   }
@@ -197,6 +182,5 @@ export function createEffects(scene, camera, player) {
     material.dispose();
   }
 
-  return { shake, slowMotion, hitStop, playerHit, emit, ring, step, reset, dispose,
-    debugSequence() { debugIndex = 0; debugClock = 0; } };
+  return { shake, slowMotion, hitStop, playerHit, emit, ring, step, reset, dispose };
 }

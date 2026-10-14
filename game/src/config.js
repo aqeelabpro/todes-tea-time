@@ -70,6 +70,16 @@ export const MIN_SPAWN_SECONDS = 0.85;
 export const HOUSE_POSITIONS = [[-60, 60], [66, 48], [0, -80]];
 export const HOUSE_HALF_WIDTH = 34;
 export const HOUSE_HALF_HEIGHT = 34;
+export const HOUSE_DOOR_ROTATIONS = [Math.PI, Math.PI * 1.5];
+export const HOUSE_FADE_OPACITY = 0.55;
+export const HOUSE_FADE_OUT_SECONDS = 0.2;
+export const HOUSE_FADE_IN_SECONDS = 0.3;
+export const HOUSE_FADE_ENTER_DELAY_SECONDS = 0.05;
+export const HOUSE_FADE_HOLD_SECONDS = 0.15;
+export const HOUSE_FADE_MAX_CAMERA_DISTANCE = 650;
+export const HOUSE_FADE_PLAYER_HEIGHT = 12;
+export const HOUSE_OCCLUSION_EPSILON = 0.001;
+export const GROUND_EFFECT_RENDER_ORDER = 20;
 export const LEAF_DROP_CHANCE = 0.25;
 export const LEAF_LIFETIME_SECONDS = 8;
 export const LEAF_BLINK_SECONDS = 2;
@@ -120,7 +130,7 @@ export const STAGE_THREE_BRUTE_SHARE_GROWTH = 0.025;
 export const STAGE_THREE_BRUTE_SHARE_SCORE_STEP = 50;
 export const BRUTE_INTRO_COOLDOWN = 15;
 export const STAGE_PULSE_SECONDS = 0.9;
-export const BOSS_SCORE_STEP = 500;
+export const BOSS_SCORE_STEP = 750;
 export const WIN_BOSS_COUNT = 1;
 export const VICTORY_STEAM_SECONDS = 2.4;
 export const BOSS_KILL_SCORE = 300;
@@ -189,7 +199,6 @@ export const BOSS_REST_PULSE_BASE = 0.2;
 export const BOSS_REST_PULSE_AMPLITUDE = 0.2;
 export const BOSS_LEAF_OFFSETS = [[-18, 0], [18, 0], [0, 18]];
 export const BOSS_PHASE_LEAF_OFFSETS = [[35, 0], [-35, 0], [0, 35], [0, -35], [0, 0]];
-export const DEBUG_ENEMY_SPAWN_DISTANCES = [80, 110, 145];
 export const UPGRADE_SCORE_STEP = 100;
 export const UPGRADE_SCORE_GROWTH = 50;
 export const UPGRADE_CARD_COUNT = 3;
@@ -282,6 +291,7 @@ export const AUDIO_ATTACK_SECONDS = 0.008;
 export const AUDIO_RELEASE_FLOOR = 0.0001;
 export const AUDIO_STOP_TAIL = 0.02;
 export const AUDIO_FADE_SECONDS = 0.25;
+export const AUDIO_GAME_OVER_CUE_SECONDS = 1.25;
 export const AUDIO_NOISE_SECONDS = 1;
 export const AUDIO_SPATIAL_RANGE = 230;
 export const AUDIO_SPATIAL_MIN_GAIN = 0.12;
@@ -291,15 +301,6 @@ export const BRUTE_STEP_SECONDS = 0.5;
 export const BOSS_STEP_SECONDS = 0.62;
 export const AUDIO_BOSS_DUCK_SECONDS = 0.7;
 export const AUDIO_DRAMA_DUCK = 0.28;
-export const AUDIO_DEBUG_STEP_SECONDS = 0.4;
-export const AUDIO_DEBUG_PANS = [-1, 1];
-export const AUDIO_DEBUG_SEQUENCE = [
-  'jump', 'attack', 'tongueShot', 'tongueEat', 'gruntKill', 'bruteHit',
-  'bruteKill', 'pickup', 'matcha', 'shield', 'heart', 'upgradeOpen',
-  'upgradePick', 'stage', 'bossWarning', 'telegraph', 'dash', 'stomp',
-  'crash', 'phase', 'bossDefeat', 'victory', 'gameOver',
-  'cricket', 'bruteGrowl', 'bruteStep', 'bossRoar', 'bossStep', 'panLeft', 'panRight',
-];
 export const AMBIENT_NOTE_SECONDS = 3.2;
 export const AMBIENT_NOTE_LENGTH = 4.5;
 export const AMBIENT_VOICE_VOLUME = 0.075;
@@ -361,8 +362,6 @@ export const AMBIENT_HARMONIC_VOLUME = 0.4;
 export const AMBIENT_BOSS_PULSE = [65, 58, 0.24, 0.1];
 export const CRICKET_PITCH_FALL = 0.96;
 export const CRICKET_PULSE_GAIN = 0.11;
-export const EFFECT_DEBUG_SEQUENCE = ['grunt', 'brute', 'tongue', 'leaf', 'matcha', 'shield', 'dust', 'stomp', 'boss'];
-export const EFFECT_DEBUG_RING_RADIUS = 55;
 
 // Phase 5 save data and achievement presentation.
 export const SAVE_STORAGE_KEY = 'todeTeaTime.v1';

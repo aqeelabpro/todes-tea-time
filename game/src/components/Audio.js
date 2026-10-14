@@ -4,9 +4,9 @@ import {
   AMBIENT_PENTATONIC, AMBIENT_VOICE_VOLUME, AMBIENT_VOLUME, AMBIENT_HARMONIC_MULTIPLIER,
   AMBIENT_HARMONIC_VOLUME, AMBIENT_BOSS_PULSE, CRICKET_PITCH_FALL,
   CRICKET_PULSE_GAIN, AUDIO_ATTACK_SECONDS,
-  AUDIO_BOSS_DUCK_SECONDS, AUDIO_COMPRESSOR, AUDIO_DEBUG_PANS,
-  AUDIO_DEBUG_SEQUENCE, AUDIO_DEBUG_STEP_SECONDS, AUDIO_DRAMA_DUCK,
+  AUDIO_BOSS_DUCK_SECONDS, AUDIO_COMPRESSOR, AUDIO_DRAMA_DUCK,
   AUDIO_FADE_SECONDS, AUDIO_MUTE_STORAGE_KEY, AUDIO_NEAREST_BRUTES,
+  AUDIO_GAME_OVER_CUE_SECONDS,
   AUDIO_NOISE_SECONDS, AUDIO_PITCH_JITTER, AUDIO_RELEASE_FLOOR,
   AUDIO_SPATIAL_MIN_GAIN, AUDIO_SPATIAL_RANGE, AUDIO_STOP_TAIL,
   BREW_NOTE_MULTIPLIERS, CRICKET_BOSS_FADE_SECONDS, CRICKET_INTERVAL,
@@ -32,43 +32,47 @@ export function createAudio(camera, player) {
   let bossPulseClock = 0;
   let cricketClock = between(CRICKET_INTERVAL);
   let duckLeft = 0;
-  let debugIndex = -1;
-  let debugClock = 0;
-
+  let gameOverCueUntil = 0;
   function gesture() {
-    if (!context) {
-      const Constructor = window.AudioContext || window.webkitAudioContext;
-      if (!Constructor) return;
-      context = new Constructor();
-      master = context.createGain();
-      master.gain.value = muted ? 0 : MASTER_VOLUME;
-      const compressor = context.createDynamicsCompressor();
-      compressor.threshold.value = AUDIO_COMPRESSOR.threshold;
-      compressor.knee.value = AUDIO_COMPRESSOR.knee;
-      compressor.ratio.value = AUDIO_COMPRESSOR.ratio;
-      compressor.attack.value = AUDIO_COMPRESSOR.attack;
-      compressor.release.value = AUDIO_COMPRESSOR.release;
-      master.connect(compressor).connect(context.destination);
-      sfxBus = context.createGain();
-      sfxBus.gain.value = SFX_VOLUME;
-      sfxBus.connect(master);
-      ambientBus = context.createGain();
-      ambientBus.gain.value = 0;
-      ambientBus.connect(master);
-      cricketBus = context.createGain();
-      cricketBus.gain.value = 0;
-      cricketBus.connect(master);
-      noiseBuffer = context.createBuffer(1, Math.ceil(context.sampleRate * AUDIO_NOISE_SECONDS), context.sampleRate);
-      const samples = noiseBuffer.getChannelData(0);
-      for (let index = 0; index < samples.length; index++) samples[index] = Math.random() * 2 - 1;
+    try {
+      if (!context) {
+        const Constructor = window.AudioContext || window.webkitAudioContext;
+        if (!Constructor) return;
+        context = new Constructor();
+        master = context.createGain();
+        master.gain.value = muted ? 0 : MASTER_VOLUME;
+        const compressor = context.createDynamicsCompressor();
+        compressor.threshold.value = AUDIO_COMPRESSOR.threshold;
+        compressor.knee.value = AUDIO_COMPRESSOR.knee;
+        compressor.ratio.value = AUDIO_COMPRESSOR.ratio;
+        compressor.attack.value = AUDIO_COMPRESSOR.attack;
+        compressor.release.value = AUDIO_COMPRESSOR.release;
+        master.connect(compressor).connect(context.destination);
+        sfxBus = context.createGain();
+        sfxBus.gain.value = SFX_VOLUME;
+        sfxBus.connect(master);
+        ambientBus = context.createGain();
+        ambientBus.gain.value = 0;
+        ambientBus.connect(master);
+        cricketBus = context.createGain();
+        cricketBus.gain.value = 0;
+        cricketBus.connect(master);
+        noiseBuffer = context.createBuffer(1, Math.ceil(context.sampleRate * AUDIO_NOISE_SECONDS), context.sampleRate);
+        const samples = noiseBuffer.getChannelData(0);
+        for (let index = 0; index < samples.length; index++) samples[index] = Math.random() * 2 - 1;
+      }
+      if (context.state === 'suspended') context.resume().catch(() => {});
+    } catch {
+      try { context?.close()?.catch(() => {}); } catch { /* Audio is optional. */ }
+      context = null;
+      master = sfxBus = ambientBus = cricketBus = noiseBuffer = null;
     }
-    if (context.state === 'suspended') context.resume().catch(() => {});
   }
 
   function toggleMute() {
     muted = !muted;
     try { localStorage.setItem(AUDIO_MUTE_STORAGE_KEY, muted ? '1' : '0'); } catch { /* Storage may be disabled. */ }
-    if (context) master.gain.setTargetAtTime(muted ? 0 : MASTER_VOLUME, context.currentTime, AUDIO_FADE_SECONDS);
+    try { if (context) master.gain.setTargetAtTime(muted ? 0 : MASTER_VOLUME, context.currentTime, AUDIO_FADE_SECONDS); } catch { /* Audio is optional. */ }
     return muted;
   }
 
@@ -154,23 +158,28 @@ export function createAudio(camera, player) {
 
   function play(name, position = null, panOverride = null, pitch = 1) {
     if (!context || muted) return;
-    const preset = SOUND_PRESETS[name];
-    if (!preset) return;
-    for (const [start, end, duration, volume, type, delay = 0] of preset.notes ?? []) {
-      tone(start * pitch, end * pitch, duration, volume, type, delay, sfxBus, position, panOverride);
-    }
-    if (preset.noise) noise(...preset.noise, sfxBus, position, panOverride);
-    if (['bruteGrowl', 'bossRoar', 'phase', 'crash', 'stomp', 'bossDefeat'].includes(name)) {
-      duckLeft = AUDIO_BOSS_DUCK_SECONDS;
-    }
+    try {
+      const preset = SOUND_PRESETS[name];
+      if (!preset) return;
+      for (const [start, end, duration, volume, type, delay = 0] of preset.notes ?? []) {
+        tone(start * pitch, end * pitch, duration, volume, type, delay, sfxBus, position, panOverride);
+      }
+      if (preset.noise) noise(...preset.noise, sfxBus, position, panOverride);
+      if (name === 'gameOver') gameOverCueUntil = context.currentTime + AUDIO_GAME_OVER_CUE_SECONDS;
+      if (['bruteGrowl', 'bossRoar', 'phase', 'crash', 'stomp', 'bossDefeat'].includes(name)) {
+        duckLeft = AUDIO_BOSS_DUCK_SECONDS;
+      }
+    } catch { /* Audio is optional; a device failure must not stop gameplay. */ }
   }
 
   function fanfare() {
     if (!context || muted) return;
-    FANFARE_NOTES.forEach((frequency, index) => {
-      tone(frequency, frequency, FANFARE_NOTE_LENGTH, 0.16, 'triangle',
-        index * FANFARE_NOTE_GAP);
-    });
+    try {
+      FANFARE_NOTES.forEach((frequency, index) => {
+        tone(frequency, frequency, FANFARE_NOTE_LENGTH, 0.16, 'triangle',
+          index * FANFARE_NOTE_GAP);
+      });
+    } catch { /* Audio is optional. */ }
   }
 
   function cricketTrill(pan = CRICKET_PANS[Math.floor(Math.random() * CRICKET_PANS.length)]) {
@@ -183,51 +192,41 @@ export function createAudio(camera, player) {
     }
   }
 
-  function playDebug(name) {
-    if (name === 'victory') return fanfare();
-    if (name === 'cricket') return cricketTrill();
-    if (name === 'panLeft') return play('bruteGrowl', null, AUDIO_DEBUG_PANS[0]);
-    if (name === 'panRight') return play('bossRoar', null, AUDIO_DEBUG_PANS[1]);
-    play(name);
-  }
-
   function update(dt, mode, stage, bossAlive) {
     if (!context) return;
-    const playing = mode === 'playing';
-    const now = context.currentTime;
-    ambientBus.gain.setTargetAtTime(playing ? AMBIENT_VOLUME : 0, now, AUDIO_FADE_SECONDS);
-    const level = CRICKET_STAGE_LEVELS[Math.min(stage - 1, CRICKET_STAGE_LEVELS.length - 1)];
-    const duck = duckLeft > 0 ? AUDIO_DRAMA_DUCK : 1;
-    cricketBus.gain.setTargetAtTime(playing && !bossAlive ? CRICKET_VOLUME * level * duck : 0,
-      now, bossAlive ? CRICKET_BOSS_FADE_SECONDS : AUDIO_FADE_SECONDS);
-    if (!playing) return;
-    duckLeft = Math.max(0, duckLeft - dt);
-    ambientClock += dt;
-    if (ambientClock >= AMBIENT_NOTE_SECONDS) {
-      ambientClock -= AMBIENT_NOTE_SECONDS;
-      const frequency = AMBIENT_PENTATONIC[Math.floor(Math.random() * AMBIENT_PENTATONIC.length)];
-      tone(frequency, frequency, AMBIENT_NOTE_LENGTH, AMBIENT_VOICE_VOLUME, 'sine', 0, ambientBus);
-      tone(frequency * AMBIENT_HARMONIC_MULTIPLIER, frequency * AMBIENT_HARMONIC_MULTIPLIER,
-        AMBIENT_NOTE_LENGTH, AMBIENT_VOICE_VOLUME * AMBIENT_HARMONIC_VOLUME, 'triangle', 0, ambientBus);
-    }
-    bossPulseClock = bossAlive ? bossPulseClock + dt : 0;
-    if (bossPulseClock >= AMBIENT_BOSS_PULSE_SECONDS) {
-      bossPulseClock -= AMBIENT_BOSS_PULSE_SECONDS;
-      tone(...AMBIENT_BOSS_PULSE, 'sine', 0, ambientBus);
-    }
-    cricketClock -= dt;
-    if (cricketClock <= 0) {
-      cricketClock = between(CRICKET_INTERVAL);
-      if (!bossAlive) cricketTrill();
-    }
-    if (debugIndex >= 0) {
-      debugClock -= dt;
-      while (debugClock <= 0 && debugIndex < AUDIO_DEBUG_SEQUENCE.length) {
-        playDebug(AUDIO_DEBUG_SEQUENCE[debugIndex++]);
-        debugClock += AUDIO_DEBUG_STEP_SECONDS;
+    try {
+      const playing = mode === 'playing';
+      const now = context.currentTime;
+      const quietSfx = ['start', 'paused', 'upgrade'].includes(mode) ||
+        (mode === 'over' && now >= gameOverCueUntil);
+      sfxBus.gain.setTargetAtTime(quietSfx ? 0 : SFX_VOLUME,
+        now, AUDIO_FADE_SECONDS);
+      ambientBus.gain.setTargetAtTime(playing ? AMBIENT_VOLUME : 0, now, AUDIO_FADE_SECONDS);
+      const level = CRICKET_STAGE_LEVELS[Math.min(stage - 1, CRICKET_STAGE_LEVELS.length - 1)];
+      const duck = duckLeft > 0 ? AUDIO_DRAMA_DUCK : 1;
+      cricketBus.gain.setTargetAtTime(playing && !bossAlive ? CRICKET_VOLUME * level * duck : 0,
+        now, bossAlive ? CRICKET_BOSS_FADE_SECONDS : AUDIO_FADE_SECONDS);
+      if (!playing) return;
+      duckLeft = Math.max(0, duckLeft - dt);
+      ambientClock += dt;
+      if (ambientClock >= AMBIENT_NOTE_SECONDS) {
+        ambientClock -= AMBIENT_NOTE_SECONDS;
+        const frequency = AMBIENT_PENTATONIC[Math.floor(Math.random() * AMBIENT_PENTATONIC.length)];
+        tone(frequency, frequency, AMBIENT_NOTE_LENGTH, AMBIENT_VOICE_VOLUME, 'sine', 0, ambientBus);
+        tone(frequency * AMBIENT_HARMONIC_MULTIPLIER, frequency * AMBIENT_HARMONIC_MULTIPLIER,
+          AMBIENT_NOTE_LENGTH, AMBIENT_VOICE_VOLUME * AMBIENT_HARMONIC_VOLUME, 'triangle', 0, ambientBus);
       }
-      if (debugIndex >= AUDIO_DEBUG_SEQUENCE.length) debugIndex = -1;
-    }
+      bossPulseClock = bossAlive ? bossPulseClock + dt : 0;
+      if (bossPulseClock >= AMBIENT_BOSS_PULSE_SECONDS) {
+        bossPulseClock -= AMBIENT_BOSS_PULSE_SECONDS;
+        tone(...AMBIENT_BOSS_PULSE, 'sine', 0, ambientBus);
+      }
+      cricketClock -= dt;
+      if (cricketClock <= 0) {
+        cricketClock = between(CRICKET_INTERVAL);
+        if (!bossAlive) cricketTrill();
+      }
+    } catch { /* Audio is optional. */ }
   }
 
   function reset() {
@@ -235,14 +234,12 @@ export function createAudio(camera, player) {
     bossPulseClock = 0;
     cricketClock = between(CRICKET_INTERVAL);
     duckLeft = 0;
-    debugIndex = -1;
-    debugClock = 0;
+    gameOverCueUntil = 0;
   }
 
   return {
     gesture, toggleMute, update, reset, play,
     get muted() { return muted; },
-    debugSequence() { debugIndex = 0; debugClock = 0; },
     jump: () => play('jump'), attack: () => play('attack'),
     tongueShot: () => play('tongueShot'), tongueEat: () => play('tongueEat'),
     gruntKill: (position) => play('gruntKill', position),

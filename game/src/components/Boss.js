@@ -7,6 +7,7 @@ import {
   BOSS_TELEGRAPH_COLOR, BOSS_TELEGRAPH_PULSE_OPACITY, BOSS_TELEGRAPH_PULSE_SPEED,
   BOSS_TELEGRAPH_SECONDS, BOSS_TELEGRAPH_WIDTH,
   BOSS_CRASH_COOLDOWN, BOSS_STUN_TIME,
+  GROUND_EFFECT_RENDER_ORDER,
 } from '../config.js';
 import { houseAt, isBlocked } from './World.js';
 
@@ -66,7 +67,8 @@ export function createBossCharge(scene, enemy, hooks = {}) {
     const length = Math.hypot(dx, dy);
     telegraph = new THREE.Group();
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(length + BOSS_TELEGRAPH_WIDTH, BOSS_TELEGRAPH_WIDTH),
-      new THREE.MeshBasicMaterial({ color: BOSS_TELEGRAPH_COLOR, transparent: true, opacity: BOSS_TELEGRAPH_BASE_OPACITY, depthWrite: false, side: THREE.DoubleSide }));
+      new THREE.MeshBasicMaterial({ color: BOSS_TELEGRAPH_COLOR, transparent: true, opacity: BOSS_TELEGRAPH_BASE_OPACITY, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+    strip.renderOrder = GROUND_EFFECT_RENDER_ORDER;
     strip.position.set(start.x + dx / 2, start.y + dy / 2, 0.3);
     strip.rotation.z = Math.atan2(dy, dx);
     telegraph.add(strip);
@@ -83,10 +85,12 @@ export function createBossCharge(scene, enemy, hooks = {}) {
     telegraph = new THREE.Group();
     telegraph.position.set(stompCenter.x, stompCenter.y, 0.35);
     const fill = new THREE.Mesh(new THREE.CircleGeometry(radius, 64),
-      new THREE.MeshBasicMaterial({ color: BOSS_TELEGRAPH_COLOR, transparent: true, opacity: BOSS_TELEGRAPH_BASE_OPACITY, depthWrite: false, side: THREE.DoubleSide }));
+      new THREE.MeshBasicMaterial({ color: BOSS_TELEGRAPH_COLOR, transparent: true, opacity: BOSS_TELEGRAPH_BASE_OPACITY, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
     fill.scale.setScalar(0.01);
     const border = new THREE.Mesh(new THREE.RingGeometry(radius - 2, radius, 64),
-      new THREE.MeshBasicMaterial({ color: BOSS_TELEGRAPH_COLOR, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+      new THREE.MeshBasicMaterial({ color: BOSS_TELEGRAPH_COLOR, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+    fill.renderOrder = GROUND_EFFECT_RENDER_ORDER;
+    border.renderOrder = GROUND_EFFECT_RENDER_ORDER;
     telegraph.add(fill, border);
     scene.add(telegraph);
     hooks.onStompTelegraph?.(stompCenter.clone());

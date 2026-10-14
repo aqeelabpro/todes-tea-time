@@ -35,11 +35,5 @@ export function createAchievements(save, onUnlock) {
     }
   }
 
-  function debugRandom() {
-    const unlocked = new Set(save.data.achievements.map(({ id }) => id));
-    const locked = ACHIEVEMENTS.filter(({ id }) => !unlocked.has(id));
-    if (locked.length) unlock(locked[Math.floor(Math.random() * locked.length)].id);
-  }
-
-  return { emit, debugRandom };
+  return { emit };
 }

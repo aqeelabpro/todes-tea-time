@@ -3,6 +3,7 @@ import {
   BREW_HUD, GREEN_TEA_SECONDS, LEAF_BLINK_SECONDS, LEAF_DROP_CHANCE,
   LEAF_LIFETIME_SECONDS, LEAF_VISUAL_SCALE, LEAF_HEIGHT, LEAF_BOB_HEIGHT,
   MATCHA_HUD_SECONDS, MATCHA_RADIUS, PICKUP_RADIUS, SHIELD_DURATION, SHIELD_INVULNERABILITY_SECONDS, SHIELD_RING_RADIUS,
+  GROUND_EFFECT_RENDER_ORDER,
 } from '../config.js';
 
 function makeLeaf() {
@@ -28,8 +29,9 @@ function makeLeaf() {
 }
 
 function makeRing(radius, color) {
-  const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+  const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, depthTest: false });
   const mesh = new THREE.Mesh(new THREE.RingGeometry(radius - 1.5, radius, 64), material);
+  mesh.renderOrder = GROUND_EFFECT_RENDER_ORDER;
   mesh.position.z = 0.25;
   return mesh;
 }
@@ -161,6 +163,7 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
 
   return {
     drop, update, contact, reset, effect,
+    get drops() { return drops; },
     get greenTeaLeft() { return greenTeaLeft; },
     get hasShield() { return shield; },
     get shieldLeft() { return shieldLeft; },

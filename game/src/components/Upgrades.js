@@ -49,7 +49,7 @@ function valueChange(id, level, state) {
   }
 }
 
-export function createUpgrades(state, onChainAttack, onChoose = () => {}) {
+export function createUpgrades(state, onChainAttack, onChoose = () => {}, onOffer = () => {}) {
   const counts = Object.fromEntries(upgrades.map(({ id }) => [id, 0]));
   const hud = document.querySelector('.hud');
   const owned = document.createElement('div');
@@ -88,6 +88,7 @@ export function createUpgrades(state, onChainAttack, onChoose = () => {}) {
     }
     choices = available.slice(0, UPGRADE_CARD_COUNT);
     state.mode = 'upgrade';
+    onOffer();
     cards.innerHTML = choices.map(({ id, name, description }, index) => `
       <button class="upgrade-card" type="button" data-upgrade-index="${index}">
         <span class="upgrade-key">${index + 1}</span><span class="upgrade-icon">${icons[id]}</span>

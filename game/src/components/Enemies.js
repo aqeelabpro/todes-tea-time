@@ -4,12 +4,13 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import {
   BOSS_KILL_SCORE, BOSS_NORMAL_SPAWN_RATE, BOSS_SCORE_STEP, BOSS_HP,
   BOSS_HP_GROWTH, BOSS_DIFFICULTY, BOSS_PHASE_TWO_THRESHOLD, BOSS_PHASE_THREE_THRESHOLD,
-  BOSS_ENRAGE_SPEED, BOSS_PHASE_BEAT_SECONDS, BOSS_STAGGER_SECONDS,
+  BOSS_ENRAGE_SPEED, BOSS_STAGGER_SECONDS,
   BOSS_REST_DAMAGE_MULTIPLIER, BOSS_SUMMON_COUNT, BOSS_SUMMON_INTERVAL,
   BOSS_REST_PULSE_SPEED, BOSS_REST_PULSE_BASE, BOSS_REST_PULSE_AMPLITUDE,
   BOSS_PHASE_LEAF_OFFSETS, BOSS_SUMMON_CORNER_OFFSETS,
   BOSS_CRASH_DAMAGE, BOSS_STUN_DAMAGE_MULTIPLIER, BOSS_STUN_TINT,
   BOSS_STUN_WHITE_MIX, BOSS_BLOCK_CANCEL_SECONDS,
+  AUDIO_BRUTE_HEARING_RANGE, AUDIO_NEAREST_BRUTES, BRUTE_STEP_SECONDS, BOSS_STEP_SECONDS,
   BRUTE_HIT_KNOCKBACK_FRACTION, BRUTE_KNOCKBACK_SECONDS, BRUTE_STAGGER_TIME,
   BRUTE_ATTACK_RECOVERY, ENEMY_HIT_SQUASH, STAGES, STAGE_THREE_BRUTE_SHARE_CAP,
   STAGE_THREE_BRUTE_SHARE_GROWTH, STAGE_THREE_BRUTE_SHARE_SCORE_STEP,
@@ -57,7 +58,7 @@ function houseEntry(from, to, house, radius) {
   return near < far && near < 1 && far > 0 ? near : Infinity;
 }
 
-function firstBlockingHouse(from, to, radius) {
+export function firstBlockingHouse(from, to, radius) {
   let result = null;
   let entry = Infinity;
   for (const house of HOUSE_POSITIONS) {
@@ -122,7 +123,6 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
   let firstBossHintShown = false;
   let bruteIntroduced = false;
   let bruteCooldown = 0;
-  let beatLeft = 0;
   const bossFlow = createFlowField(ENEMY_TYPES.boss.radius);
   new GLTFLoader().load('/models/enemy.glb', ({ scene: model }) => {
     template = model;
@@ -184,7 +184,7 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
       id: nextEnemyId++, flashMaterials: [], phase: 1, summoned: false,
       hitFlashLeft: 0, isDashing: false, dashPath: null, charge: null,
       staggerLeft: 0, staggerLock: 0, contactRecovery: 0, knockback: null, summonClock: 0,
-      blockedFor: 0,
+      blockedFor: 0, stepClock: 0,
     };
     enemies.push(enemy);
     if (type === 'boss') {
@@ -192,6 +192,7 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
       bossesSpawned += 1;
       enemy.charge = createBossCharge(scene, enemy, {
         onTelegraph: () => {
+          hooks.onBossTelegraph?.(enemy.group.position.clone());
           if (bossesSpawned === 1 && !firstBossHintShown) {
             firstBossHintShown = true;
             hooks.onBossFirstTelegraph?.();
@@ -201,9 +202,13 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
           hooks.onBossCrash?.(position, houseIndex);
           damage(enemy, enemy.maxHp * BOSS_CRASH_DAMAGE, position);
         },
+        onDash: (position) => hooks.onBossDash?.(position),
+        onStompTelegraph: (position) => hooks.onBossTelegraph?.(position),
+        onStomp: (position) => hooks.onBossStomp?.(position),
       });
     }
     attachModel(enemy);
+    hooks.onSpawn?.(enemy);
     return enemy;
   }
 
@@ -391,6 +396,9 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
       if (enemy.charge?.stunned) amount *= BOSS_STUN_DAMAGE_MULTIPLIER;
       else if (enemy.charge?.resting) amount *= BOSS_REST_DAMAGE_MULTIPLIER;
     }
+    if (enemy.type === 'brute' || enemy.type === 'boss') {
+      hooks.onHeavyHit?.(enemy.group.position.clone(), enemy.type, enemy.hp <= amount);
+    }
     enemy.hp = Math.max(0, enemy.hp - amount);
     if (enemy.hp === 0) {
       remove(enemy, true, spaceAttack ? 'space' : 'other');
@@ -413,7 +421,6 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
       if (nextPhase > enemy.phase) {
         for (let phase = enemy.phase + 1; phase <= nextPhase; phase++) {
           enemy.phase = phase;
-          beatLeft = BOSS_PHASE_BEAT_SECONDS;
           hooks.onBossPhase?.(phase, enemy.group.position.clone(), BOSS_PHASE_LEAF_OFFSETS);
           if (phase === 2) summonGrunts(enemy);
         }
@@ -437,8 +444,7 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
     }
   }
 
-  function update(dt, playerPosition, realDt = dt) {
-    beatLeft = Math.max(0, beatLeft - realDt);
+  function update(dt, playerPosition) {
     bruteCooldown = Math.max(0, bruteCooldown - dt);
     if (stage().number >= 2 && !bruteIntroduced && !boss) {
       const introduction = cornerSpawn('brute');
@@ -462,6 +468,12 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
       cornerSpawn(chooseNormalType());
     }
     const difficultySpeed = 1 + level * DIFFICULTY_SPEED_STEP;
+    const nearestBrutes = enemies.filter((enemy) => enemy.type === 'brute')
+      .map((enemy) => ({ enemy, distance: Math.hypot(enemy.group.position.x - playerPosition.x, enemy.group.position.y - playerPosition.y) }))
+      .filter(({ distance }) => distance <= AUDIO_BRUTE_HEARING_RANGE)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, AUDIO_NEAREST_BRUTES)
+      .map(({ enemy }) => enemy);
     const hash = spatialHash();
     for (const enemy of [...enemies]) {
       if (enemy.tongueCaptured) continue;
@@ -543,6 +555,22 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
           enemy.charge.cancelBlocked();
           enemy.blockedFor = 0;
         }
+        if (moved > 0) {
+          enemy.stepClock += dt;
+          if (enemy.stepClock >= BOSS_STEP_SECONDS) {
+            enemy.stepClock = 0;
+            hooks.onFootstep?.(enemy.group.position.clone(), 'boss');
+          }
+        }
+      } else if (enemy.type === 'brute' && nearestBrutes.includes(enemy)) {
+        const moved = Math.hypot(enemy.group.position.x - beforeX, enemy.group.position.y - beforeY);
+        if (moved > 0) {
+          enemy.stepClock += dt;
+          if (enemy.stepClock >= BRUTE_STEP_SECONDS) {
+            enemy.stepClock = 0;
+            hooks.onFootstep?.(enemy.group.position.clone(), 'brute');
+          }
+        }
       }
     }
   }
@@ -588,11 +616,10 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
     firstBossHintShown = false;
     bruteIntroduced = false;
     bruteCooldown = 0;
-    beatLeft = 0;
     nextEnemyId = 0;
     if (spawnAtStart) cornerSpawn('grunt');
   }
   cornerSpawn('grunt');
   return { enemies, update, remove, damage, contactKnockback, clear, debugSpawn,
-    get boss() { return boss; }, get stage() { return stage(); }, get beatLeft() { return beatLeft; } };
+    get boss() { return boss; }, get stage() { return stage(); } };
 }

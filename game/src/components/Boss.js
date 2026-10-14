@@ -89,6 +89,7 @@ export function createBossCharge(scene, enemy, hooks = {}) {
       new THREE.MeshBasicMaterial({ color: BOSS_TELEGRAPH_COLOR, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
     telegraph.add(fill, border);
     scene.add(telegraph);
+    hooks.onStompTelegraph?.(stompCenter.clone());
   }
 
   function update(dt, playerPosition) {
@@ -121,11 +122,16 @@ export function createBossCharge(scene, enemy, hooks = {}) {
       if (mode === 'chargeTelegraph') {
         telegraph.children[0].material.opacity = BOSS_TELEGRAPH_BASE_OPACITY + BOSS_TELEGRAPH_PULSE_OPACITY *
           (1 + Math.sin(remaining * BOSS_TELEGRAPH_PULSE_SPEED)) / 2;
-        if (remaining === 0) { clearTelegraph(); mode = 'dash'; }
+        if (remaining === 0) {
+          clearTelegraph();
+          mode = 'dash';
+          hooks.onDash?.(enemy.group.position.clone());
+        }
       } else {
         telegraph.children[0].scale.setScalar(Math.max(0.01, 1 - remaining / BOSS_STOMP_SECONDS));
         if (remaining === 0) {
           enemy.stompArea = { center: stompCenter.clone(), radius: BOSS_STOMP_RADIUS * (enemy.phase === 3 ? BOSS_ENRAGED_STOMP_MULTIPLIER : 1) };
+          hooks.onStomp?.(stompCenter.clone());
           rest();
         }
       }

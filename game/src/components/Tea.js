@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  ATTACK_EFFECT_SECONDS, BREW_HUD, GREEN_TEA_SECONDS, LEAF_BLINK_SECONDS, LEAF_DROP_CHANCE,
+  BREW_HUD, GREEN_TEA_SECONDS, LEAF_BLINK_SECONDS, LEAF_DROP_CHANCE,
   LEAF_LIFETIME_SECONDS, LEAF_VISUAL_SCALE, LEAF_HEIGHT, LEAF_BOB_HEIGHT,
   MATCHA_HUD_SECONDS, MATCHA_RADIUS, PICKUP_RADIUS, SHIELD_DURATION, SHIELD_INVULNERABILITY_SECONDS, SHIELD_RING_RADIUS,
 } from '../config.js';
@@ -36,7 +36,6 @@ function makeRing(radius, color) {
 
 export function createTea(scene, player, enemies, onChange, modifiers = {}) {
   const drops = [];
-  const effects = [];
   const shieldRing = makeRing(SHIELD_RING_RADIUS, BREW_HUD.Chamomile.color);
   shieldRing.visible = false;
   scene.add(shieldRing);
@@ -56,11 +55,7 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
   }
 
   function effect(radius, color, center) {
-    const ring = makeRing(radius, color);
-    ring.position.set(center.x, center.y, 0.25);
-    ring.scale.setScalar(0.05);
-    scene.add(ring);
-    effects.push({ ring, age: 0 });
+    modifiers.effects?.ring(center, radius, color);
   }
 
   function brew(kind) {
@@ -115,22 +110,9 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
       if (Math.hypot(item.mesh.position.x - player.group.position.x, item.mesh.position.y - player.group.position.y) <= (modifiers.getPickupRadius?.() ?? PICKUP_RADIUS)) {
         const kind = item.fixedBrew ?? ['Green Tea', 'Chamomile', 'Matcha Burst'][Math.floor(Math.random() * 3)];
         removeDrop(i);
-        modifiers.onLeafCollected?.();
+        modifiers.onLeafCollected?.(kind, player.group.getWorldPosition(new THREE.Vector3()));
         brew(kind);
       } else if (item.age >= LEAF_LIFETIME_SECONDS) removeDrop(i);
-    }
-    for (let i = effects.length - 1; i >= 0; i--) {
-      const item = effects[i];
-      item.age += dt;
-      const progress = Math.min(1, item.age / ATTACK_EFFECT_SECONDS);
-      item.ring.scale.setScalar(progress);
-      item.ring.material.opacity = 0.85 * (1 - progress);
-      if (progress >= 1) {
-        scene.remove(item.ring);
-        item.ring.geometry.dispose();
-        item.ring.material.dispose();
-        effects.splice(i, 1);
-      }
     }
     onChange();
   }
@@ -157,6 +139,7 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
       shieldLeft = 0;
       shieldRing.visible = false;
       invulnerableLeft = SHIELD_INVULNERABILITY_SECONDS;
+      modifiers.onShieldBlock?.(player.group.getWorldPosition(new THREE.Vector3()));
       if (destroyOnContact) enemies.remove(enemy);
       onChange();
       return 'shielded';
@@ -166,12 +149,6 @@ export function createTea(scene, player, enemies, onChange, modifiers = {}) {
 
   function reset() {
     while (drops.length) removeDrop(drops.length - 1);
-    for (const item of effects) {
-      scene.remove(item.ring);
-      item.ring.geometry.dispose();
-      item.ring.material.dispose();
-    }
-    effects.length = 0;
     greenTeaLeft = 0;
     invulnerableLeft = 0;
     matchaNoticeLeft = 0;

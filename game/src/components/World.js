@@ -21,7 +21,8 @@ export function isBlocked(x, y, radius = 0) {
 export function createWorld(scene) {
   const houses = [];
   scene.background = new THREE.Color('#228B22');
-  scene.add(new THREE.AmbientLight('#ffffff', 1.5));
+  const ambient = new THREE.AmbientLight('#ffffff', 1.5);
+  scene.add(ambient);
   const sun = new THREE.DirectionalLight('#ffffff', 1.5);
   sun.position.set(-100, -100, 200);
   scene.add(sun);
@@ -111,5 +112,5 @@ export function createWorld(scene) {
     }
   }
 
-  return { flashHouse, update, reset };
+  return { flashHouse, update, reset, ambient, sun };
 }

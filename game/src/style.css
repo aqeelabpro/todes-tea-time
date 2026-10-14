@@ -84,4 +84,18 @@ body { margin: 0; overflow: hidden; font-family: Trebuchet MS, Verdana, sans-ser
 .upgrade-debug-button { position: absolute; right: 1rem; bottom: 1rem; padding: .55rem .8rem; color: #f4eaa8; background: #284a38; border: 2px solid #b6d489; border-radius: 8px; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; pointer-events: auto; }
 .upgrade-debug-button:hover, .upgrade-debug-button:focus-visible { background: #38664a; outline: none; }
 .upgrade-debug-button.hidden { display: none; }
+.mute-button { pointer-events: auto; border: 0; background: transparent; color: #f4eaa8; font: inherit; cursor: pointer; }
+.hud-pulse { animation: hud-pulse var(--hud-pulse-seconds) ease-out; }
+.hud-pulse-strong { animation: hud-pulse-strong var(--hud-pulse-seconds) ease-out; }
+.heart-shake { animation: heart-shake var(--hud-heart-seconds) ease-out; }
+.brew-enter { animation: brew-enter var(--hud-brew-seconds) ease-out; }
+.boss-hit { animation: boss-hit var(--hud-boss-hit-seconds) ease-out; }
+.boss-phase-flash { animation: boss-phase-flash var(--hud-boss-phase-seconds) ease-out; }
+.hud.is-frozen * { animation-play-state: paused !important; }
+@keyframes hud-pulse { 50% { transform: scale(1.13); color: #f4eaa8; } }
+@keyframes hud-pulse-strong { 50% { transform: scale(1.35); color: #fff9ca; } }
+@keyframes heart-shake { 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+@keyframes brew-enter { from { transform: translateX(-20px); opacity: 0; } }
+@keyframes boss-hit { 25% { transform: translateX(calc(-50% - 4px)); } 75% { transform: translateX(calc(-50% + 4px)); } }
+@keyframes boss-phase-flash { 50% { filter: brightness(1.8); border-color: #fff1ba; } }
 @media (max-width: 680px) { .upgrade-cards { grid-template-columns: 1fr; } .upgrade-card { min-height: 105px; gap: .2rem; } .upgrade-icon svg { width: 32px; height: 32px; } .owned-upgrades { top: 5rem; } }

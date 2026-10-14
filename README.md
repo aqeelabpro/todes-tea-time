@@ -1,17 +1,54 @@
-# Build a Game with an AI Coding Agent
-[![official JetBrains project](http://jb.gg/badges/official.svg)](https://confluence.jetbrains.com/display/ALL/JetBrains+on+GitHub) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-<a href="https://www.coursera.org/learn/jb-build-game-with-ai-agent/" target="_blank">
-<img src="https://img.shields.io/badge/Coursera-0056D2?style=for-the-badge&logo=Coursera&logoColor=white&style=flat" alt="Course%20catalog"></a>
-<a href="https://plugins.jetbrains.com/plugin/30327-build-a-game-with-ai-coding-agent/versions" target="_blank">
-<img src="https://img.shields.io/badge/dynamic/yaml?query=%24.course_version&url=https://raw.githubusercontent.com/jetbrains-academy/game-course/refs/heads/main/course-remote-info.yaml&logo=jetbrains&logoColor=FC801D&label=Marketplace&color=6b59fe&style=flat&prefix=v" alt="Marketplace"></a>
+# Tode's Tea Time
 
-Build a 3D browser game step by step – with the help of an AI coding agent.
+A complete 3D browser game built with **Three.js** and **Vite**. Tode the frog is trying to enjoy a quiet cup of tea, but monsters keep invading his home. Hop around the map, fight through escalating waves, collect tea leaves, and defeat the Monster King. After victory, you can continue the same run in Endless Mode.
 
-In this project-based course, you'll plan, build, and polish a complete game inside IDE, using AI coding agents to turn ideas into working code. Follow the story of Tode the Frog, or customize the visuals and make the game your own. No grades – just hands-on building and your creativity.
+This repository began with the *Build a Game with an AI Coding Agent* course scaffold. The playable game in [`game/`](game/) extends that foundation with its own combat, progression, boss encounter, effects, audio, achievements, and ending. The course folders remain here as the learning material that led to the project.
 
-## Want to know more?
-If you have questions about the course or the tasks, or if you find any errors, feel free to ask questions and participate 
-in discussions within the repository [issues](https://github.com/jetbrains-academy/game-course/issues).
+## Play locally
 
-## Contribution
-Please be sure to review the [project's contributing guidelines](https://github.com/jetbrains-academy/.github/blob/main/contributing_guidelines.md) to learn how to help the project.
+```sh
+cd game
+npm install
+npm run dev
+```
+
+Open the local URL Vite prints. To build and preview the production version:
+
+```sh
+npm run build
+npm run preview
+```
+
+The game runs entirely in the browser; it needs no server or account. High scores, achievements, and the mute setting are stored in that browser's local storage.
+
+## Controls
+
+| Input | Action |
+| --- | --- |
+| WASD or arrow keys | Hop one grid space |
+| Space | Ring attack |
+| E | Eat a nearby Grunt with Tode's tongue |
+| P | Pause or resume |
+| M | Mute or unmute |
+| 1, 2, 3 or click | Choose an upgrade card |
+| Enter after victory | Continue in Endless Mode |
+| Space after victory or Game Over | Start a new run |
+
+## What this game adds
+
+- **Tea leaves and brews:** defeated enemies can drop leaves for Green Tea speed, a Chamomile shield, or a Matcha Burst.
+- **Survival and progression:** hearts, a score-driven upgrade picker, stacking upgrades, changing stages, and Grunt and Brute enemies.
+- **Monster King:** a multi-phase boss with visible charge and stomp warnings, summoned Grunts, an enraged phase, and a house-crash weakness.
+- **Combat feedback:** Tode's tongue attack, hit reactions, particles, screen shake, and clear HUD feedback.
+- **Atmosphere and sound:** lighting shifts from dusk to night with fireflies and crickets. Music and effects are synthesized with the Web Audio API.
+- **Reasons to replay:** a victory ending, Endless Mode, eight achievements, and a saved high score.
+
+## Repository layout
+
+- [`game/`](game/) — the playable Vite project; see its [game README](game/README.md) for the concise game guide.
+- `Introduction/`, `Skeleton/`, `Core_loop/`, `Visual/`, `Conclusion/` — course lessons and reference material.
+- Root configuration and metadata — files used by the course project.
+
+## Credits and license
+
+Built from the JetBrains Academy *Build a Game with an AI Coding Agent* course scaffold. The three GLB models in `game/public/models/` came with the course. The added game effects use Three.js primitives and CSS, and all game audio is generated procedurally; there are no sound files. The course material in this repository retains its [MIT license](LICENSE) and attribution.

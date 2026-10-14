@@ -1,5 +1,7 @@
 # Tode's Tea Time
 
+The playable game built on the course scaffold. For the project overview and credits, see the [repository README](../README.md).
+
 Tode the frog defends his home from monsters so he can finally enjoy his tea in peace. Hop around the checkerboard, survive waves of enemies, and defeat the Monster King. Victory can lead into Endless Mode.
 
 ## Run
@@ -11,7 +13,7 @@ npm install
 npm run dev
 ```
 
-For a production build, run `npm run build`.
+For a production build, run `npm run build`. To serve that build locally, run `npm run preview`.
 
 ## Controls
 

@@ -1,39 +1,361 @@
-import { GREEN_TEA_SECONDS } from '../config.js';
+import {
+  BOSS_HUD_NAME, BOSS_PHASE_TWO_THRESHOLD, BOSS_PHASE_THREE_THRESHOLD,
+  BOSS_CRASH_HINT, BOSS_CRASH_HINT_SECONDS,
+  BREW_HUD, GREEN_TEA_SECONDS, HIT_FLASH_SECONDS,
+  MATCHA_HUD_FADE_SECONDS, MATCHA_HUD_SECONDS,
+  SHIELD_DURATION, STAGES, STAGE_PULSE_SECONDS, VICTORY_STEAM_SECONDS,
+  HUD_PULSE_SECONDS, HUD_HEART_SHAKE_SECONDS, HUD_BREW_SLIDE_SECONDS,
+  HUD_BOSS_HIT_SECONDS, HUD_BOSS_PHASE_SECONDS, START_STORY, START_CONTROLS,
+  ACHIEVEMENTS, ACHIEVEMENT_TOAST_SECONDS, ACHIEVEMENT_TOAST_EXIT_SECONDS,
+  ACHIEVEMENT_BADGE_PULSE_SECONDS,
+} from '../config.js';
+import { getDisplayedScore } from '../GameState.js';
 
 export function createHUD() {
   const root = document.createElement('div');
   root.className = 'hud';
   root.innerHTML = `
-    <div class="hud-top"><div class="title">Tode's Tea Time</div><div class="stats"><span id="score">Score 0</span><span id="kills">Kills 0</span></div></div>
+    <div id="hit-flash" class="hit-flash"></div>
+    <div class="hud-top"><div class="title-block"><div class="title">Tode's Tea Time</div><div id="hearts" class="hearts" aria-label="Lives"></div></div><div class="stats"><div class="score-stack"><div class="score-line"><span id="score">Score 0</span><span id="kills">Kills 0</span></div><small id="best-score">Best: 0</small></div><span id="stage">Stage 1</span><span id="endless" class="hidden">Endless</span><span id="tongue-meter" class="tongue-meter ready" role="progressbar" aria-label="Tongue cooldown" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><strong>E</strong><span class="tongue-meter-track"><span class="tongue-meter-fill"></span></span></span><button id="mute" class="mute-button" type="button" aria-label="Mute audio" title="M: mute">♫</button></div></div>
+    <div id="boss-health" class="boss-health hidden"><div class="boss-health-heading"><strong>${BOSS_HUD_NAME}</strong><span id="boss-phase"></span></div><div class="boss-health-track"><div class="boss-health-fill"></div><i class="boss-tick tick-one"></i><i class="boss-tick tick-two"></i></div><div id="boss-hint" class="boss-hint hidden">${BOSS_CRASH_HINT}</div></div>
     <div id="brews" class="brews"></div>
-    <div class="controls">WASD / arrows · hop &nbsp; Space · attack &nbsp; P · pause</div>
-    <div id="overlay" class="overlay hidden"><div class="overlay-card"><h1 id="overlay-title"></h1><p id="overlay-detail"></p></div></div>
+    <div class="controls">WASD / arrows · hop &nbsp; Space · attack &nbsp; E · tongue &nbsp; P · pause &nbsp; M · mute</div>
+    <div id="achievement-toast" class="achievement-toast hidden" role="status" aria-live="polite"><svg class="toast-trophy" viewBox="0 0 32 32" aria-hidden="true"><path d="M8 4h16v10c0 6-3 9-8 9s-8-3-8-9V4ZM8 8H4v5c0 4 2 6 6 6M24 8h4v5c0 4-2 6-6 6M16 23v5m-7 0h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong id="toast-name"></strong><small id="toast-description"></small></span></div>
+    <div id="overlay" class="overlay hidden"><div class="overlay-card"><h1 id="overlay-title"></h1><p id="overlay-detail"></p><div id="overlay-record" class="record-badge hidden">New high score!</div><div id="game-over-stats" class="run-stats hidden"></div><div id="achievement-panel" class="achievement-panel hidden"></div><button id="reset-saved-data" class="reset-saved-data hidden" type="button">Reset saved data</button></div></div>
+    <div id="victory" class="victory hidden"><div class="victory-card">
+      <h1>Victory!</h1>
+      <div class="teacup" aria-hidden="true"><span class="steam steam-one"></span><span class="steam steam-two"></span><span class="steam steam-three"></span><span class="cup-handle"></span><span class="cup-body"></span><span class="cup-saucer"></span></div>
+      <p>The monsters are gone. Tode finally enjoys his tea in peace.</p>
+      <div id="victory-record" class="record-badge hidden">New high score!</div><div id="victory-stats" class="run-stats"></div>
+      <div class="victory-actions"><button type="button" data-victory-choice="continue">Enter: Keep playing (Endless Mode)</button><button type="button" data-victory-choice="restart">Space: Play again</button></div>
+    </div></div>
   `;
   document.body.append(root);
   const score = root.querySelector('#score');
+  const stageLabel = root.querySelector('#stage');
+  const endlessLabel = root.querySelector('#endless');
+  stageLabel.style.setProperty('--stage-pulse-seconds', `${STAGE_PULSE_SECONDS}s`);
   const kills = root.querySelector('#kills');
+  const muteButton = root.querySelector('#mute');
+  const pulse = (element, className = 'hud-pulse') => {
+    element.classList.remove(className);
+    void element.offsetWidth;
+    element.classList.add(className);
+  };
+  root.style.setProperty('--hud-pulse-seconds', `${HUD_PULSE_SECONDS}s`);
+  root.style.setProperty('--hud-heart-seconds', `${HUD_HEART_SHAKE_SECONDS}s`);
+  root.style.setProperty('--hud-brew-seconds', `${HUD_BREW_SLIDE_SECONDS}s`);
+  root.style.setProperty('--hud-boss-hit-seconds', `${HUD_BOSS_HIT_SECONDS}s`);
+  root.style.setProperty('--hud-boss-phase-seconds', `${HUD_BOSS_PHASE_SECONDS}s`);
+  root.style.setProperty('--toast-transition-seconds', `${ACHIEVEMENT_TOAST_EXIT_SECONDS}s`);
+  root.style.setProperty('--record-pulse-seconds', `${ACHIEVEMENT_BADGE_PULSE_SECONDS}s`);
+  const tongueMeter = root.querySelector('#tongue-meter');
+  const tongueFill = tongueMeter.querySelector('.tongue-meter-fill');
+  const hearts = root.querySelector('#hearts');
+  const hitFlash = root.querySelector('#hit-flash');
+  const bossHealth = root.querySelector('#boss-health');
+  bossHealth.style.setProperty('--phase-two-tick', `${BOSS_PHASE_TWO_THRESHOLD * 100}%`);
+  bossHealth.style.setProperty('--phase-three-tick', `${BOSS_PHASE_THREE_THRESHOLD * 100}%`);
+  const bossHealthFill = bossHealth.querySelector('.boss-health-fill');
+  const bossPhase = bossHealth.querySelector('#boss-phase');
+  const bossHint = bossHealth.querySelector('#boss-hint');
   const brews = root.querySelector('#brews');
   const overlay = root.querySelector('#overlay');
+  const victory = root.querySelector('#victory');
+  victory.style.setProperty('--steam-seconds', `${VICTORY_STEAM_SECONDS}s`);
+  const gameOverStats = root.querySelector('#game-over-stats');
+  const victoryStats = root.querySelector('#victory-stats');
+  const bestScoreLabel = root.querySelector('#best-score');
+  const achievementPanel = root.querySelector('#achievement-panel');
+  const resetSavedButton = root.querySelector('#reset-saved-data');
+  const overlayRecord = root.querySelector('#overlay-record');
+  const victoryRecord = root.querySelector('#victory-record');
+  const toast = root.querySelector('#achievement-toast');
+  const toastName = root.querySelector('#toast-name');
+  const toastDescription = root.querySelector('#toast-description');
+  let saveData = { bestScore: 0, achievements: [] };
+  let resetSave = () => {};
+  let resetConfirm = false;
+  const toastQueue = [];
+  let toastLeft = 0;
+  resetSavedButton.addEventListener('click', () => {
+    if (!resetConfirm) {
+      resetConfirm = true;
+      resetSavedButton.textContent = 'Press again to confirm';
+      return;
+    }
+    resetSave();
+    resetConfirm = false;
+    resetSavedButton.textContent = 'Reset saved data';
+  });
+  let victoryChoice = () => {};
+  victory.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-victory-choice]');
+    if (button && victory.contains(button)) victoryChoice(button.dataset.victoryChoice);
+  });
+  let matchaResult = '';
+  let hitFlashLeft = 0;
+  let bossHintLeft = 0;
+  let lastStage = STAGES[0].number;
+  let stagePulseUntil = 0;
+  let previousScore = 0;
+  let previousKills = 0;
+  let previousHearts = null;
+  let previousBossHp = null;
+  let previousBossPhase = null;
+  const brewNodes = new Map();
+  let onStageChange = null;
 
-  function update(state, tea) {
-    score.textContent = `Score ${state.score}`;
-    kills.textContent = `Kills ${state.kills}`;
-    const items = [];
-    if (tea.greenTeaLeft > 0) items.push(`<div class="brew"><span>Green Tea · ${tea.greenTeaLeft.toFixed(1)}s</span><div class="brew-track"><div class="brew-fill" style="width:${tea.greenTeaLeft / GREEN_TEA_SECONDS * 100}%"></div></div></div>`);
-    if (tea.hasShield) items.push('<div class="brew"><span>Chamomile · shield ready</span><div class="brew-track"><div class="brew-fill full"></div></div></div>');
-    if (tea.invulnerableLeft > 0) items.push(`<div class="brew"><span>Invulnerable · ${tea.invulnerableLeft.toFixed(1)}s</span><div class="brew-track"><div class="brew-fill" style="width:${tea.invulnerableLeft * 100}%"></div></div></div>`);
-    brews.innerHTML = items.join('');
+  function setMuted(muted) {
+    muteButton.textContent = muted ? '♪̸' : '♫';
+    muteButton.setAttribute('aria-label', muted ? 'Unmute audio' : 'Mute audio');
   }
 
-  function setOverlay(mode, state) {
-    overlay.classList.toggle('hidden', mode === 'playing');
+  function setSaveData(data) {
+    saveData = data;
+    bestScoreLabel.textContent = `Best: ${data.bestScore}`;
+  }
+
+  function showNextToast() {
+    const item = toastQueue.shift();
+    if (!item) { toast.classList.add('hidden'); return; }
+    toastName.textContent = item.name;
+    toastDescription.textContent = item.description;
+    toastLeft = ACHIEVEMENT_TOAST_SECONDS + 2 * ACHIEVEMENT_TOAST_EXIT_SECONDS;
+    toast.classList.remove('hidden', 'toast-leaving', 'toast-entering');
+    void toast.offsetWidth;
+    toast.classList.add('toast-entering');
+  }
+
+  function queueAchievement(item) {
+    toastQueue.push(item);
+    if (toast.classList.contains('hidden')) showNextToast();
+  }
+
+  function tickAchievements(dt) {
+    if (toastLeft <= 0) return;
+    toastLeft = Math.max(0, toastLeft - dt);
+    if (toastLeft <= ACHIEVEMENT_TOAST_EXIT_SECONDS) toast.classList.add('toast-leaving');
+    if (toastLeft === 0) showNextToast();
+  }
+
+  function clearAchievements() {
+    toastQueue.length = 0;
+    toastLeft = 0;
+    toast.classList.add('hidden');
+    toast.classList.remove('toast-entering', 'toast-leaving');
+  }
+
+  function resetJuice() {
+    previousScore = 0;
+    previousKills = 0;
+    previousHearts = null;
+    previousBossHp = null;
+    previousBossPhase = null;
+    brewNodes.clear();
+    lastStage = STAGES[0].number;
+    stagePulseUntil = 0;
+  }
+
+  function hitBoss() { pulse(bossHealth, 'boss-hit'); }
+  function flashBossPhase() { pulse(bossHealth, 'boss-phase-flash'); }
+  function bossBonusPulse() { pulse(score, 'hud-pulse-strong'); }
+
+  function flashHit() {
+    hitFlashLeft = HIT_FLASH_SECONDS;
+    hitFlash.style.opacity = '1';
+  }
+
+  function tickHitFlash(dt) {
+    hitFlashLeft = Math.max(0, hitFlashLeft - dt);
+    hitFlash.style.opacity = String(hitFlashLeft / HIT_FLASH_SECONDS);
+  }
+
+  function clearHitFlash() {
+    hitFlashLeft = 0;
+    hitFlash.style.opacity = '0';
+  }
+
+  function showBossHint() {
+    bossHintLeft = BOSS_CRASH_HINT_SECONDS;
+    bossHint.classList.remove('hidden');
+  }
+
+  function tickBossHint(dt) {
+    bossHintLeft = Math.max(0, bossHintLeft - dt);
+    if (bossHintLeft === 0) bossHint.classList.add('hidden');
+  }
+
+  function clearBossHint() {
+    bossHintLeft = 0;
+    bossHint.classList.add('hidden');
+  }
+
+  function setTongueStatus(remaining, total) {
+    const ready = total <= 0 ? 1 : Math.max(0, Math.min(1, 1 - remaining / total));
+    tongueFill.style.width = `${ready * 100}%`;
+    tongueMeter.classList.toggle('ready', remaining <= 0);
+    tongueMeter.setAttribute('aria-valuenow', String(Math.round(ready * 100)));
+  }
+
+  function brewIndicator(kind) {
+    const { color, icon } = BREW_HUD[kind];
+    const row = document.createElement('div');
+    row.className = 'brew brew-enter';
+    row.style.setProperty('--brew-color', color);
+    row.innerHTML = `<div class="brew-label"><span class="brew-icon" aria-hidden="true">${icon}</span><span><strong>${kind}</strong>: <span class="brew-status"></span></span></div><div class="brew-track"><div class="brew-fill"></div></div>`;
+    return row;
+  }
+
+  function onBrewEvent(kind, event, detail) {
+    if (kind === 'Matcha Burst' && event === 'pickup') matchaResult = BREW_HUD[kind].result(detail);
+  }
+
+  function clearBrews() {
+    matchaResult = '';
+    brewNodes.clear();
+    brews.replaceChildren();
+  }
+
+  function update(state, tea, boss = null) {
+    const displayedScore = getDisplayedScore(state);
+    if (displayedScore > previousScore) pulse(score);
+    previousScore = displayedScore;
+    score.textContent = `Score ${displayedScore}`;
+    const currentStage = [...STAGES].reverse().find((stage) => getDisplayedScore(state) >= stage.score) ?? STAGES[0];
+    if (currentStage.number !== lastStage) {
+      stagePulseUntil = state.time + STAGE_PULSE_SECONDS;
+      lastStage = currentStage.number;
+      onStageChange?.(currentStage.number);
+    }
+    stageLabel.textContent = `Stage ${currentStage.number}`;
+    stageLabel.classList.toggle('stage-pulse', state.time < stagePulseUntil);
+    endlessLabel.classList.toggle('hidden', !state.endless);
+    if (state.kills > previousKills) pulse(kills);
+    previousKills = state.kills;
+    kills.textContent = `Kills ${state.kills}`;
+    bossHealth.classList.toggle('hidden', !boss);
+    if (boss) {
+      if (previousBossHp != null && boss.hp < previousBossHp) hitBoss();
+      if (previousBossPhase != null && boss.phase !== previousBossPhase) flashBossPhase();
+      bossHealthFill.style.width = `${boss.hp / boss.maxHp * 100}%`;
+      bossPhase.textContent = boss.phase === 3 ? 'Enraged' : `Phase ${boss.phase}`;
+      bossHealth.setAttribute('aria-label', `${BOSS_HUD_NAME}: ${boss.hp} of ${boss.maxHp} health`);
+    }
+    previousBossHp = boss?.hp ?? null;
+    previousBossPhase = boss?.phase ?? null;
+    root.classList.toggle('boss-visible', Boolean(boss));
+    if (previousHearts != null && state.lives < previousHearts) pulse(hearts, 'heart-shake');
+    previousHearts = state.lives;
+    hearts.setAttribute('aria-label', `${state.lives} of ${state.maxLives} hearts`);
+    hearts.innerHTML = Array.from({ length: state.maxLives }, (_, index) => `<svg class="heart ${index < state.lives ? 'full' : 'empty'}" viewBox="0 0 32 30" aria-hidden="true"><path d="M16 27 4.4 16.1C-2.3 9.7 3.4 0.6 11.1 3.4 13.3 4.2 15 6 16 7.2 16 7.2 16 7.2S18.7 4.2 20.9 3.4C28.6 0.6 34.3 9.7 27.6 16.1Z"/></svg>`).join('');
+    const activeBrews = new Set();
+    for (const kind of ['Green Tea', 'Chamomile', 'Matcha Burst']) {
+      const remaining = kind === 'Green Tea' ? tea.greenTeaLeft : kind === 'Chamomile' ? tea.shieldLeft : tea.matchaNoticeLeft;
+      const active = kind === 'Green Tea' ? tea.greenTeaLeft > 0 : kind === 'Chamomile' ? tea.hasShield : tea.matchaNoticeLeft > 0;
+      if (active) {
+        activeBrews.add(kind);
+        const duration = kind === 'Green Tea' ? GREEN_TEA_SECONDS : kind === 'Chamomile' ? SHIELD_DURATION : MATCHA_HUD_SECONDS;
+        const description = kind === 'Matcha Burst' ? matchaResult : BREW_HUD[kind].description;
+        const opacity = kind === 'Matcha Burst' ? Math.min(1, remaining / MATCHA_HUD_FADE_SECONDS) : 1;
+        let row = brewNodes.get(kind);
+        if (!row) {
+          row = brewIndicator(kind);
+          brewNodes.set(kind, row);
+          brews.append(row);
+        }
+        row.querySelector('.brew-status').textContent = `${description} · ${remaining.toFixed(1)}s`;
+        row.querySelector('.brew-fill').style.width = `${Math.max(0, Math.min(1, remaining / duration)) * 100}%`;
+        row.style.opacity = String(opacity);
+      }
+    }
+    for (const [kind, row] of brewNodes) {
+      if (!activeBrews.has(kind)) { row.remove(); brewNodes.delete(kind); }
+    }
+  }
+
+  function renderRunStats(target, stats, bestScore = saveData.bestScore) {
+    target.replaceChildren();
+    if (!stats) return;
+    const elapsed = Math.floor(stats.time);
+    const time = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
+    const upgrades = stats.upgradesChosen.length
+      ? stats.upgradesChosen.map(({ name, count }) => `${name} ×${count}`).join(', ') : 'None';
+    for (const [label, value] of [
+      ['Final score', stats.score], ['Best score', bestScore], ['Kills', stats.kills], ['Time survived', time],
+      ['Hearts left', stats.heartsLeft], ['Tea leaves collected', stats.leavesCollected],
+      ['Bosses defeated', stats.bossesDefeated], ['Damage taken', stats.damageTaken],
+      ['Bosses crashed', stats.bossesCrashed],
+      ['Upgrades chosen', upgrades],
+    ]) {
+      const row = document.createElement('div');
+      row.className = 'run-stat';
+      const name = document.createElement('span');
+      const result = document.createElement('strong');
+      name.textContent = label;
+      result.textContent = String(value);
+      row.append(name, result);
+      target.append(row);
+    }
+  }
+
+  function renderAchievements() {
+    achievementPanel.replaceChildren();
+    const heading = document.createElement('strong');
+    heading.textContent = `Achievements ${saveData.achievements.length}/${ACHIEVEMENTS.length}`;
+    achievementPanel.append(heading);
+    const list = document.createElement('div');
+    list.className = 'achievement-grid';
+    const unlocked = new Set(saveData.achievements.map(({ id }) => id));
+    for (const item of ACHIEVEMENTS) {
+      const badge = document.createElement('div');
+      badge.className = `achievement-badge ${unlocked.has(item.id) ? 'unlocked' : 'locked'}`;
+      const name = document.createElement('strong');
+      const description = document.createElement('small');
+      name.textContent = `${unlocked.has(item.id) ? '★' : '☆'} ${item.name}`;
+      description.textContent = item.description;
+      badge.append(name, description);
+      list.append(badge);
+    }
+    achievementPanel.append(list);
+  }
+
+  function setOverlay(mode, state, stats = null, result = null) {
+    setFrozen(mode !== 'playing');
+    if (mode === 'victory' || mode === 'over') toast.classList.remove('toast-entering', 'toast-leaving');
+    overlay.classList.toggle('hidden', mode !== 'paused' && mode !== 'over' && mode !== 'start');
+    victory.classList.toggle('hidden', mode !== 'victory');
+    achievementPanel.classList.toggle('hidden', mode !== 'start' && mode !== 'over');
+    resetSavedButton.classList.toggle('hidden', mode !== 'start');
+    overlayRecord.classList.toggle('hidden', mode !== 'over' || !result?.newHighScore);
+    victoryRecord.classList.toggle('hidden', mode !== 'victory' || !result?.newHighScore);
+    if (mode !== 'start') { resetConfirm = false; resetSavedButton.textContent = 'Reset saved data'; }
+    if (mode === 'start' || mode === 'over') renderAchievements();
+    if (mode === 'victory') renderRunStats(victoryStats, stats, result?.bestScore);
     if (mode === 'over') {
       root.querySelector('#overlay-title').textContent = 'Game Over';
-      root.querySelector('#overlay-detail').textContent = `Score ${state.score} · ${state.kills} kills · Press Space to reset`;
+      const bossRemaining = state.bossRemainingPercent == null ? '' : ` · Boss HP ${state.bossRemainingPercent}%`;
+      root.querySelector('#overlay-detail').textContent = `Score ${getDisplayedScore(state)} · ${state.kills} kills${bossRemaining} · Press Space to reset`;
+      renderRunStats(gameOverStats, stats, result?.bestScore);
+      gameOverStats.classList.remove('hidden');
+    } else if (mode === 'start') {
+      root.querySelector('#overlay-title').textContent = "Tode's Tea Time";
+      root.querySelector('#overlay-detail').innerHTML = `${START_STORY}<br>${START_CONTROLS}<br>Best: ${saveData.bestScore} · Achievements ${saveData.achievements.length}/${ACHIEVEMENTS.length}<br><strong>Press any key to start</strong>`;
+      gameOverStats.classList.add('hidden');
     } else if (mode === 'paused') {
       root.querySelector('#overlay-title').textContent = 'Paused';
       root.querySelector('#overlay-detail').textContent = 'Press P to continue';
+      gameOverStats.classList.add('hidden');
+    } else {
+      gameOverStats.classList.add('hidden');
     }
   }
-  return { update, setOverlay };
+  function setFrozen(frozen) { root.classList.toggle('is-frozen', frozen); }
+  return { update, setOverlay, onBrewEvent, clearBrews, flashHit, tickHitFlash, clearHitFlash, setTongueStatus,
+    showBossHint, tickBossHint, clearBossHint, setMuted, hitBoss, flashBossPhase, bossBonusPulse, resetJuice, setFrozen,
+    setSaveData, queueAchievement, tickAchievements, clearAchievements,
+    onResetSave(callback) { resetSave = callback; },
+    onMuteClick(callback) { muteButton.addEventListener('click', callback); },
+    onStageChange(callback) { onStageChange = callback; },
+    onVictoryChoice(callback) { victoryChoice = callback; } };
 }

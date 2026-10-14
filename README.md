@@ -1,8 +1,30 @@
 # Tode's Tea Time
 
-A complete 3D browser game built with **Three.js** and **Vite**. Tode the frog is trying to enjoy a quiet cup of tea, but monsters keep invading his home. Hop around the map, fight through escalating waves, collect tea leaves, and defeat the Monster King. After victory, you can continue the same run in Endless Mode.
+**A complete 3D browser game made with Three.js, Vite, and procedurally generated audio.**
 
-This repository began with the *Build a Game with an AI Coding Agent* course scaffold. The playable game in [`game/`](game/) extends that foundation with its own combat, progression, boss encounter, effects, audio, achievements, and ending. The course folders remain here as the learning material that led to the project.
+Tode the frog is trying to enjoy a quiet cup of tea, but monsters keep invading his home. Hop around the map, fight through escalating waves, collect tea leaves, and defeat the Monster King. After victory, continue the same run in Endless Mode or start fresh.
+
+This repository began with the *Build a Game with an AI Coding Agent* course scaffold. The playable game in [`game/`](game/) extends it with tea brews, upgrades, a multi-phase boss, a tongue attack, night atmosphere, synthesized sound, achievements, and a victory ending. The course folders remain as the learning material behind the project.
+
+## See the game
+
+### Home and saved progress
+
+![Tode's Tea Time start screen with the story, controls, best score, and achievement badges](docs/screenshots/home.png)
+
+*The start screen introduces Tode's story and controls, and shows the high score and achievements saved in this browser.*
+
+### House occlusion fade
+
+![Checkerboard playfield with one foreground house faded to reveal the action behind it](docs/screenshots/house-fade.png)
+
+*A foreground house turns translucent only when it obscures an important on-screen object. Its color and the rest of the playfield remain visible. The blue tag at the lower right belongs to the screenshot tool, not the game.*
+
+### Upgrade picker
+
+![Three upgrade cards with icons, descriptions, current and new values, and level caps](docs/screenshots/upgrades.png)
+
+*Scoring milestones pause the game and offer three different upgrades. Each card explains what changes and shows its current and next value.*
 
 ## Play locally
 
@@ -34,7 +56,7 @@ The game runs entirely in the browser; it needs no server or account. High score
 | Enter after victory | Continue in Endless Mode |
 | Space after victory or Game Over | Start a new run |
 
-## What this game adds
+## What we built beyond the course scaffold
 
 - **Tea leaves and brews:** defeated enemies can drop leaves for Green Tea speed, a Chamomile shield, or a Matcha Burst.
 - **Survival and progression:** hearts, a score-driven upgrade picker, stacking upgrades, changing stages, and Grunt and Brute enemies.

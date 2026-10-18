@@ -14,7 +14,7 @@ export const PLAYER_HOP_SECONDS = 0.19;
 export const PLAYER_HOP_HEIGHT = 10.4;
 export const INPUT_QUEUE_LIMIT = 2;
 export const ENEMY_RADIUS = 11;
-export const ENEMY_SPEED = 30;
+export const ENEMY_SPEED = 40;
 export const ENEMY_SPAWN_INSET = 25;
 export const ENEMY_SPAWN_JITTER = 10;
 export const ENEMY_SEPARATION_DISTANCE = 32;
@@ -22,8 +22,9 @@ export const ENEMY_SEPARATION_STRENGTH = 1.8;
 export const ENEMY_SIDEWAYS_BIAS = 0.55;
 export const ENEMY_DETOUR_MARGIN = 4;
 export const ENEMY_WAYPOINT_RADIUS = 3;
-export const ENEMY_SPAWN_SECONDS = 2.7;
-export const ENEMY_LIMIT = 32;
+export const ENEMY_SPAWN_SECONDS = 2.2;
+export const ENEMY_LIMIT = 56;
+export const ENEMY_SPAWN_MIN_PLAYER_DISTANCE = 120;
 export const ENEMY_HIT_FLASH_SECONDS = 0.15;
 export const ENEMY_HIT_FLASH_EMISSIVE = 0.7;
 export const ENEMY_HIT_SQUASH = 1.08;
@@ -63,10 +64,31 @@ export const TONGUE_COLOR = '#f878ab';
 export const TONGUE_CAUGHT_COLOR = '#a45462';
 export const KILL_SCORE = 10;
 export const SURVIVAL_SCORE_PER_SECOND = 1;
-export const DIFFICULTY_SCORE_INTERVAL = 75;
-export const DIFFICULTY_SPEED_STEP = 0.065;
-export const DIFFICULTY_SPAWN_STEP = 0.11;
-export const MIN_SPAWN_SECONDS = 0.85;
+// One unit of difficulty growth per 75 points, applied continuously.
+export const COMPLEXITY_GROWTH_RATE = 1 / 75;
+export const DIFFICULTY_TIME_SECONDS = 25;
+export const DIFFICULTY_SPEED_STEP = 0.14;
+export const DIFFICULTY_MAX_ENEMY_SPEED = 4;
+export const DIFFICULTY_SPAWN_STEP = 0.18;
+export const DIFFICULTY_BATCH_STEP = 3;
+export const DIFFICULTY_MAX_BATCH = 4;
+export const DIFFICULTY_INITIAL_ENEMY_LIMIT = 16;
+export const DIFFICULTY_ENEMY_LIMIT_STEP = 4;
+export const DIFFICULTY_HEALTH_STEP = 4;
+export const DIFFICULTY_MAX_HEALTH_BONUS = 4;
+export const DIFFICULTY_BOSS_HEALTH_STEP = 0.06;
+export const DIFFICULTY_PLAYER_SPEED_STEP = 0.025;
+export const DIFFICULTY_ATTACK_DELAY_STEP = 0.025;
+export const DIFFICULTY_ATTACK_RANGE_STEP = 0.015;
+export const MAX_PLAYER_SPEED_MULTIPLIER = 1.25;
+export const MAX_ATTACK_RANGE_MULTIPLIER = 1.2;
+export const MIN_ATTACK_DELAY_MULTIPLIER = 0.7;
+export const MIN_SPAWN_SECONDS = 0.45;
+export const SWARM_FIRST_SECONDS = 35;
+export const SWARM_INTERVAL_SECONDS = 35;
+export const SWARM_DURATION_SECONDS = 8;
+export const SWARM_WARNING_SECONDS = 3;
+export const SWARM_SPAWN_MULTIPLIER = 0.65;
 export const HOUSE_POSITIONS = [[-60, 60], [66, 48], [0, -80]];
 export const HOUSE_HALF_WIDTH = 34;
 export const HOUSE_HALF_HEIGHT = 34;
@@ -107,11 +129,11 @@ export const ENEMY_TYPES = {
     leafDropChance: 0.25, tint: '#ffffff', placeholderTint: '#a45462', radius: 11,
   },
   brute: {
-    scale: 10, speedMultiplier: 0.8, hp: 3, scoreValue: 50,
+    scale: 10, speedMultiplier: 0.8, hp: 4, scoreValue: 50,
     leafDropChance: 1, tint: '#8e3d62', radius: 22,
   },
   boss: {
-    scale: 20, speedMultiplier: 0.6, hp: 20, scoreValue: 0,
+    scale: 20, speedMultiplier: 0.6, hp: 40, scoreValue: 0,
     leafDropChance: 1, tint: '#aa78d2', enragedTint: '#ff5b31', radius: 30,
   },
 };
@@ -122,21 +144,21 @@ export const BOSS_CONTACT_RADIUS = ENEMY_TYPES.grunt.radius * ENEMY_TYPES.boss.s
 // Stage 3 linearly raises the Brute share until its cap.
 export const STAGES = [
   { number: 1, score: 0, bruteShare: 0, maxBrutes: 0 },
-  { number: 2, score: 150, bruteShare: 0.15, maxBrutes: 2 },
-  { number: 3, score: 350, bruteShare: 0.15, maxBrutes: 4 },
+  { number: 2, score: 100, bruteShare: 0.22, maxBrutes: 3 },
+  { number: 3, score: 275, bruteShare: 0.30, maxBrutes: 6 },
 ];
 export const STAGE_THREE_BRUTE_SHARE_CAP = 0.4;
 export const STAGE_THREE_BRUTE_SHARE_GROWTH = 0.025;
 export const STAGE_THREE_BRUTE_SHARE_SCORE_STEP = 50;
-export const BRUTE_INTRO_COOLDOWN = 15;
+export const BRUTE_INTRO_COOLDOWN = 7;
 export const STAGE_PULSE_SECONDS = 0.9;
 export const BOSS_SCORE_STEP = 750;
 export const WIN_BOSS_COUNT = 1;
 export const VICTORY_STEAM_SECONDS = 2.4;
 export const BOSS_KILL_SCORE = 300;
 export const BOSS_HUD_NAME = 'Monster King';
-export const BOSS_NORMAL_SPAWN_RATE = 0.5;
-export const BOSS_HP = 20;
+export const BOSS_NORMAL_SPAWN_RATE = 0.7;
+export const BOSS_HP = 40;
 export const BOSS_DIFFICULTY = 1;
 export const BOSS_HP_GROWTH = 0.2;
 export const BOSS_PHASE_TWO_THRESHOLD = 0.66;
@@ -199,14 +221,31 @@ export const BOSS_REST_PULSE_BASE = 0.2;
 export const BOSS_REST_PULSE_AMPLITUDE = 0.2;
 export const BOSS_LEAF_OFFSETS = [[-18, 0], [18, 0], [0, 18]];
 export const BOSS_PHASE_LEAF_OFFSETS = [[35, 0], [-35, 0], [0, 35], [0, -35], [0, 0]];
-export const UPGRADE_SCORE_STEP = 100;
-export const UPGRADE_SCORE_GROWTH = 50;
-export const UPGRADE_CARD_COUNT = 3;
+// Perks appear in the arena without stopping play. Stronger tiers grant more levels.
+export const PERK_FIRST_SPAWN_SECONDS = 3;
+export const PERK_SPAWN_SECONDS = 13;
+export const PERK_MIN_SPAWN_SECONDS = 7.5;
+export const PERK_DROP_CHANCE = 0.08;
+export const PERK_DROP_CHANCE_GROWTH = 0.003;
+export const PERK_MAX_DROP_CHANCE = 0.18;
+export const PERK_BRUTE_DROP_BONUS = 0.12;
+export const PERK_LIMIT = 5;
+export const PERK_LIFETIME_SECONDS = 18;
+export const PERK_BLINK_SECONDS = 3;
+export const PERK_SPAWN_MIN_DISTANCE = 45;
+export const PERK_SPAWN_MAX_DISTANCE = 110;
+export const PERK_POWER_SCORE = 150;
+export const PERK_EPIC_SCORE = 450;
+export const PERK_RARE_CHANCE = 0.45;
+export const PERK_EPIC_CHANCE = 0.25;
+export const PERK_NOTICE_SECONDS = 3;
+export const PERK_OVERCHARGE_SECONDS = 8;
 export const LONG_TONGUE_BONUS = 0.15;
 export const QUICK_TONGUE_REDUCTION = 0.12;
 export const LILY_HOP_BONUS = 0.10;
 export const TEA_MAGNET_MULTIPLIER = 2;
-export const LUCKY_LEAF_BONUS = 0.10;
+export const LUCKY_LEAF_BONUS = 0.05;
+export const POWER_STRIKE_DAMAGE = 0.5;
 export const CHAIN_LASH_CHANCE = 0.30;
 export const CHAIN_LASH_RADIUS_MULTIPLIER = 0.55;
 export const UPGRADE_CAPS = {
@@ -217,6 +256,7 @@ export const UPGRADE_CAPS = {
   luckyLeaf: 5,
   chainLash: 3,
   thickSkin: 2,
+  powerStrike: 3,
 };
 
 // Phase 4 visual feedback. Particle presets share one capped THREE.Points pool.
@@ -376,5 +416,5 @@ export const ACHIEVEMENTS = [
   { id: 'untouchable', name: 'Untouchable', description: 'Survive 60 seconds without losing a heart.', goal: 60 },
   { id: 'crash-test', name: 'Crash Test', description: 'Make the boss crash into a house.', goal: 1 },
   { id: 'monster-king-slayer', name: 'Monster King Slayer', description: 'Defeat the boss.', goal: 1 },
-  { id: 'fully-brewed', name: 'Fully Brewed', description: 'Take 6 upgrade cards in one run.', goal: 6 },
+  { id: 'fully-brewed', name: 'Fully Brewed', description: 'Collect 6 perk icons in one run.', goal: 6 },
 ];

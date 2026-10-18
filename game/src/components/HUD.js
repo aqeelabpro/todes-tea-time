@@ -19,6 +19,7 @@ export function createHUD() {
     <div class="hud-top"><div class="title-block"><div class="title">Tode's Tea Time</div><div id="hearts" class="hearts" aria-label="Lives"></div></div><div class="stats"><div class="score-stack"><div class="score-line"><span id="score">Score 0</span><span id="kills">Kills 0</span></div><small id="best-score">Best: 0</small></div><span id="stage">Stage 1</span><span id="endless" class="hidden">Endless</span><span id="tongue-meter" class="tongue-meter ready" role="progressbar" aria-label="Tongue cooldown" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><strong>E</strong><span class="tongue-meter-track"><span class="tongue-meter-fill"></span></span></span><button id="mute" class="mute-button" type="button" aria-label="Mute audio" title="M: mute">♫</button></div></div>
     <div id="boss-health" class="boss-health hidden"><div class="boss-health-heading"><strong>${BOSS_HUD_NAME}</strong><span id="boss-phase"></span></div><div class="boss-health-track"><div class="boss-health-fill"></div><i class="boss-tick tick-one"></i><i class="boss-tick tick-two"></i></div><div id="boss-hint" class="boss-hint hidden">${BOSS_CRASH_HINT}</div></div>
     <div id="brews" class="brews"></div>
+    <div id="swarm-notice" class="swarm-notice hidden" role="status" aria-live="polite"></div>
     <div class="controls">WASD / arrows · hop &nbsp; Space · attack &nbsp; E · tongue &nbsp; P · pause &nbsp; M · mute</div>
     <div id="achievement-toast" class="achievement-toast hidden" role="status" aria-live="polite"><svg class="toast-trophy" viewBox="0 0 32 32" aria-hidden="true"><path d="M8 4h16v10c0 6-3 9-8 9s-8-3-8-9V4ZM8 8H4v5c0 4 2 6 6 6M24 8h4v5c0 4-2 6-6 6M16 23v5m-7 0h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong id="toast-name"></strong><small id="toast-description"></small></span></div>
     <div id="overlay" class="overlay hidden"><div class="overlay-card"><h1 id="overlay-title"></h1><p id="overlay-detail"></p><div id="overlay-record" class="record-badge hidden">New high score!</div><div id="game-over-stats" class="run-stats hidden"></div><div id="achievement-panel" class="achievement-panel hidden"></div><button id="reset-saved-data" class="reset-saved-data hidden" type="button">Reset saved data</button></div></div>
@@ -33,6 +34,7 @@ export function createHUD() {
   document.body.append(root);
   const score = root.querySelector('#score');
   const stageLabel = root.querySelector('#stage');
+  const swarmNotice = root.querySelector('#swarm-notice');
   const endlessLabel = root.querySelector('#endless');
   stageLabel.style.setProperty('--stage-pulse-seconds', `${STAGE_PULSE_SECONDS}s`);
   const kills = root.querySelector('#kills');
@@ -222,13 +224,17 @@ export function createHUD() {
     if (displayedScore > previousScore) pulse(score);
     previousScore = displayedScore;
     score.textContent = `Score ${displayedScore}`;
-    const currentStage = [...STAGES].reverse().find((stage) => getDisplayedScore(state) >= stage.score) ?? STAGES[0];
+    const currentStage = [...STAGES].reverse().find((stage) => state.difficulty.progressionScore >= stage.score) ?? STAGES[0];
     if (currentStage.number !== lastStage) {
       stagePulseUntil = state.time + STAGE_PULSE_SECONDS;
       lastStage = currentStage.number;
       onStageChange?.(currentStage.number);
     }
     stageLabel.textContent = `Stage ${currentStage.number}`;
+    const { swarmActive, swarmWarning, swarmSeconds } = state.difficulty;
+    swarmNotice.classList.toggle('hidden', state.mode !== 'playing' || (!swarmActive && !swarmWarning));
+    swarmNotice.classList.toggle('swarm-active', swarmActive);
+    swarmNotice.textContent = swarmActive ? `Swarm! Keep moving · ${Math.ceil(swarmSeconds)}s` : `Swarm incoming · ${Math.ceil(swarmSeconds)}s`;
     stageLabel.classList.toggle('stage-pulse', state.time < stagePulseUntil);
     endlessLabel.classList.toggle('hidden', !state.endless);
     if (state.kills > previousKills) pulse(kills);
@@ -286,7 +292,7 @@ export function createHUD() {
       ['Hearts left', stats.heartsLeft], ['Tea leaves collected', stats.leavesCollected],
       ['Bosses defeated', stats.bossesDefeated], ['Damage taken', stats.damageTaken],
       ['Bosses crashed', stats.bossesCrashed],
-      ['Upgrades chosen', upgrades],
+      ['Perks collected', upgrades],
     ]) {
       const row = document.createElement('div');
       row.className = 'run-stat';
@@ -340,7 +346,7 @@ export function createHUD() {
       gameOverStats.classList.remove('hidden');
     } else if (mode === 'start') {
       root.querySelector('#overlay-title').textContent = "Tode's Tea Time";
-      root.querySelector('#overlay-detail').innerHTML = `${START_STORY}<br>${START_CONTROLS}<br>Best: ${saveData.bestScore} · Achievements ${saveData.achievements.length}/${ACHIEVEMENTS.length}<br><strong>Press any key to start</strong>`;
+      root.querySelector('#overlay-detail').innerHTML = `${START_STORY}<br>${START_CONTROLS}<br>Collect glowing perk icons to power up. Blue and gold perks grant extra levels.<br>Best: ${saveData.bestScore} · Achievements ${saveData.achievements.length}/${ACHIEVEMENTS.length}<br><strong>Press any key to start</strong>`;
       gameOverStats.classList.add('hidden');
     } else if (mode === 'paused') {
       root.querySelector('#overlay-title').textContent = 'Paused';

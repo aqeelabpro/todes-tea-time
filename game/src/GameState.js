@@ -1,10 +1,12 @@
 import { START_LIVES } from './config.js';
+import { getDifficulty } from './Difficulty.js';
 
 export function createGameState() {
   return {
     mode: 'playing',
     time: 0,
     score: 0,
+    difficulty: getDifficulty(0),
     kills: 0,
     survivalScore: 0,
     lives: START_LIVES,

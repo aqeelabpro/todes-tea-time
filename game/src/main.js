@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import './style.css';
 import { createGameState } from './GameState.js';
+import { getDifficulty } from './Difficulty.js';
 import {
-  BOSS_DASH_DAMAGE, BOSS_STOMP_DAMAGE, BOSS_LEAF_OFFSETS, BOSS_PHASE_LEAF_OFFSETS, BOSS_PHASE_BEAT_SCALE,
+  BOSS_DASH_DAMAGE, BOSS_STOMP_DAMAGE, BOSS_LEAF_OFFSETS, BOSS_PHASE_LEAF_OFFSETS, BOSS_PHASE_BEAT_SCALE, BOSS_PHASE_BEAT_SECONDS,
   BOSS_CONTACT_RADIUS,
   BOSS_PHASE_SHAKE_SECONDS, BOSS_PHASE_SHAKE_DISTANCE, BOSS_DEFEAT_SHAKE_SECONDS,
   BOSS_DEFEAT_SHAKE_DISTANCE, ENEMY_TYPES, GREEN_TEA_SPEED_MULTIPLIER,
   BOSS_CRASH_SHAKE_SECONDS, BOSS_CRASH_SHAKE_DISTANCE,
   HIT_INVULNERABILITY, INVULNERABILITY_BLINK_SECONDS, PLAYER_RADIUS,
   SHIELD_INVULNERABILITY_SECONDS, START_LIVES, SURVIVAL_SCORE_PER_SECOND,
-  TONGUE_LEAF_BONUS, UPGRADE_CARD_COUNT, WIN_BOSS_COUNT, SHAKE_KILL,
+  TONGUE_LEAF_BONUS, WIN_BOSS_COUNT, SHAKE_KILL,
   SHAKE_HEART, SHAKE_STOMP, SHAKE_BOSS_STEP, BREW_HUD,
 } from './config.js';
 import { createRunStats } from './RunStats.js';
@@ -79,6 +80,7 @@ const enemies = createEnemies(scene, state, (position, enemy, cause) => {
     const dropChance = ENEMY_TYPES[enemy.type].leafDropChance * (cause === 'tongue' ? TONGUE_LEAF_BONUS : 1);
     tea.drop(position, false, dropChance);
   }
+  upgrades.drop(position, enemy.type);
   if (cause === 'space') upgrades.onKill(position);
 }, {
   onBossPhase: (phase, position, offsets) => {
@@ -151,17 +153,20 @@ tea = createTea(scene, player, enemies, () => hud.update(state, tea, enemies.bos
   },
   onShieldBlock: (position) => { effects.emit('shield', position); audio.shield(); },
 });
-upgrades = createUpgrades(state, (position, radius) => {
+upgrades = createUpgrades(scene, state, player, (position, radius) => {
   tea.effect(radius, '#f4eaa8', position);
   for (const enemy of [...enemies.enemies]) {
     const enemyPosition = enemy.group.getWorldPosition(new THREE.Vector3());
-    if (Math.hypot(enemyPosition.x - position.x, enemyPosition.y - position.y) - enemy.radius <= radius) enemies.damage(enemy, 1, position);
+    if (Math.hypot(enemyPosition.x - position.x, enemyPosition.y - position.y) - enemy.radius <= radius) enemies.damage(enemy, upgrades.attackDamage, position);
   }
-}, (name) => {
+}, (name, position, color) => {
   runStats.recordUpgrade(name);
   achievements.emit('upgradePicked', runStats.snapshot(state));
   audio.upgradePick();
-}, () => audio.upgradeOpen());
+  effects.emit('leaf', position, color);
+  effects.ring(position, upgrades.pickupRadius, color);
+  hud.update(state, tea, enemies.boss);
+});
 const tongue = createTongue(scene, player, enemies, upgrades, {
   onTongueFired: () => audio.tongueShot(),
   onTongueEat: (position) => { audio.tongueEat(); effects.emit('tongue', position); },
@@ -170,9 +175,9 @@ hud.setTongueStatus(tongue.cooldownLeft, tongue.cooldown);
 let attackCooldown = 0;
 const clock = new THREE.Clock();
 
-function refreshScoreAndCheckUpgrades() {
+function refreshScore() {
+  state.difficulty = getDifficulty(state.score, state.time);
   hud.update(state, tea, enemies.boss);
-  upgrades.checkThresholds();
 }
 
 function resize() {
@@ -273,10 +278,10 @@ function attack() {
   for (const enemy of [...enemies.enemies]) {
     const enemyPosition = enemy.group.getWorldPosition(new THREE.Vector3());
     if (Math.hypot(enemyPosition.x - center.x, enemyPosition.y - center.y) - enemy.radius <= radius) {
-      enemies.damage(enemy, 1, center, true);
+      enemies.damage(enemy, upgrades.attackDamage, center, true);
     }
   }
-  refreshScoreAndCheckUpgrades();
+  refreshScore();
 }
 
 function enemyTouchesPlayer(enemy) {
@@ -331,14 +336,6 @@ addEventListener('keydown', (event) => {
     }
     return;
   }
-  if (state.mode === 'upgrade') {
-    const choice = /^(Digit|Numpad)[1-9]$/.exec(event.code);
-    if (choice && !event.repeat) {
-      const index = Number(event.code.at(-1)) - 1;
-      if (index < UPGRADE_CARD_COUNT) upgrades.choose(index);
-    }
-    return;
-  }
   if (event.code === 'KeyP' && !event.repeat && state.mode !== 'over') {
     state.mode = state.mode === 'paused' ? 'playing' : 'paused';
     hud.setOverlay(state.mode, state);
@@ -371,20 +368,21 @@ function frame() {
     const oldSurvival = state.survivalScore;
     state.survivalScore = Math.floor(state.time * SURVIVAL_SCORE_PER_SECOND);
     state.score += state.survivalScore - oldSurvival;
-    refreshScoreAndCheckUpgrades();
+    refreshScore();
     if (state.mode === 'playing') {
       attackCooldown = Math.max(0, attackCooldown - gameDt);
       state.hitInvulnerableLeft = Math.max(0, state.hitInvulnerableLeft - gameDt);
       hud.tickHitFlash(gameDt);
       hud.tickBossHint(gameDt);
+      upgrades.update(gameDt, state.time);
       player.update(gameDt, (tea.greenTeaLeft > 0 ? GREEN_TEA_SPEED_MULTIPLIER : 1) * upgrades.moveMultiplier);
       tongue.update(gameDt);
       hud.setTongueStatus(tongue.cooldownLeft, tongue.cooldown);
-      world.update(gameDt, player.camera, player.group.position, enemies.enemies, tea.drops);
+      world.update(gameDt, player.camera, player.group.position, enemies.enemies, [...tea.drops, ...upgrades.drops]);
       enemies.update(gameDt, player.group.position);
       tea.update(gameDt, state.time);
       atmosphere.update(gameDt, enemies.stage.number, Boolean(enemies.boss));
-      refreshScoreAndCheckUpgrades();
+      refreshScore();
       if (state.mode === 'playing') {
         for (const enemy of [...enemies.enemies]) {
           if (!enemies.enemies.includes(enemy)) continue;
@@ -435,7 +433,7 @@ function frame() {
             else state.hitInvulnerableLeft = HIT_INVULNERABILITY;
           }
         }
-        refreshScoreAndCheckUpgrades();
+        refreshScore();
       }
       const hitSafe = state.hitInvulnerableLeft > 0;
       const safeTime = hitSafe ? state.hitInvulnerableLeft : tea.invulnerableLeft;

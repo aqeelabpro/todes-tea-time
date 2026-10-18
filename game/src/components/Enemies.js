@@ -15,15 +15,14 @@ import {
   BRUTE_ATTACK_RECOVERY, ENEMY_HIT_SQUASH, STAGES, STAGE_THREE_BRUTE_SHARE_CAP,
   STAGE_THREE_BRUTE_SHARE_GROWTH, STAGE_THREE_BRUTE_SHARE_SCORE_STEP,
   BRUTE_INTRO_COOLDOWN,
-  DIFFICULTY_SCORE_INTERVAL, DIFFICULTY_SPEED_STEP,
   ENEMY_CONTACT_CLEARANCE, ENEMY_HIT_FLASH_EMISSIVE, ENEMY_HIT_FLASH_SECONDS,
   ENEMY_KNOCKBACK_STEP, ENEMY_PLACEHOLDER_RADIUS_FACTOR,
   ENEMY_LIMIT, ENEMY_RADIUS, ENEMY_SEPARATION_DISTANCE, ENEMY_SEPARATION_STRENGTH,
   ENEMY_SIDEWAYS_BIAS, ENEMY_DETOUR_MARGIN, ENEMY_WAYPOINT_RADIUS,
-  ENEMY_SPAWN_INSET, ENEMY_SPAWN_JITTER,
-  ENEMY_SPAWN_SECONDS, ENEMY_SPEED, ENEMY_TYPES, HEAVY_CONTACT_KNOCKBACK,
-  MAP_BOUNDARY_INSET, MAP_HALF_SIZE, MIN_SPAWN_SECONDS, PLAYER_RADIUS,
-  DIFFICULTY_SPAWN_STEP, HOUSE_HALF_HEIGHT, HOUSE_HALF_WIDTH, HOUSE_POSITIONS,
+  ENEMY_SPAWN_INSET, ENEMY_SPAWN_MIN_PLAYER_DISTANCE,
+  ENEMY_SPEED, ENEMY_TYPES, HEAVY_CONTACT_KNOCKBACK,
+  MAP_BOUNDARY_INSET, MAP_HALF_SIZE, PLAYER_RADIUS,
+  HOUSE_HALF_HEIGHT, HOUSE_HALF_WIDTH, HOUSE_POSITIONS,
 } from '../config.js';
 import { isBlocked } from './World.js';
 import { groundModel } from './ModelGrounding.js';
@@ -177,10 +176,12 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
     placeholder.position.z = data.radius * ENEMY_PLACEHOLDER_RADIUS_FACTOR;
     group.add(placeholder);
     scene.add(group);
+    const maxHp = type === 'boss'
+      ? Math.ceil(BOSS_HP * BOSS_DIFFICULTY * (1 + bossesSpawned * BOSS_HP_GROWTH) * state.difficulty.bossHealthMultiplier)
+      : data.hp + state.difficulty.enemyHealthBonus;
     const enemy = {
       type, group, placeholder, model: null, waypoint: null, radius: data.radius,
-      hp: type === 'boss' ? Math.ceil(BOSS_HP * BOSS_DIFFICULTY * (1 + bossesSpawned * BOSS_HP_GROWTH)) : data.hp,
-      maxHp: type === 'boss' ? Math.ceil(BOSS_HP * BOSS_DIFFICULTY * (1 + bossesSpawned * BOSS_HP_GROWTH)) : data.hp,
+      hp: maxHp, maxHp,
       id: nextEnemyId++, flashMaterials: [], phase: 1, summoned: false,
       hitFlashLeft: 0, isDashing: false, dashPath: null, charge: null,
       staggerLeft: 0, staggerLock: 0, contactRecovery: 0, knockback: null, summonClock: 0,
@@ -212,23 +213,24 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
     return enemy;
   }
 
-  function cornerSpawn(type) {
-    const startCorner = Math.floor(Math.random() * corners.length);
+  function edgeSpawn(type, playerPosition = { x: 0, y: 0 }) {
     const radius = ENEMY_TYPES[type].radius;
     const inset = Math.max(ENEMY_SPAWN_INSET, radius + MAP_BOUNDARY_INSET);
-    for (let attempt = 0; attempt < corners.length; attempt++) {
-      const candidate = corners[(startCorner + attempt) % corners.length];
-      const [cx, cy] = candidate;
-      const edge = MAP_HALF_SIZE - inset;
-      const jitter = Math.random() * ENEMY_SPAWN_JITTER;
-      const enemy = spawnAt(type, [cx * edge, cy * (edge - jitter)]);
+    const edge = MAP_HALF_SIZE - inset;
+    // Spread arrivals around all four edges; clustered corners throttled larger waves.
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const side = Math.floor(Math.random() * 4);
+      const along = (Math.random() * 2 - 1) * edge;
+      const [x, y] = side < 2 ? [(side === 0 ? -1 : 1) * edge, along] : [along, (side === 2 ? -1 : 1) * edge];
+      if (Math.hypot(x - playerPosition.x, y - playerPosition.y) < ENEMY_SPAWN_MIN_PLAYER_DISTANCE) continue;
+      const enemy = spawnAt(type, [x, y]);
       if (enemy) return enemy;
     }
     return null;
   }
 
   function stage() {
-    return [...STAGES].reverse().find((entry) => state.score >= entry.score) ?? STAGES[0];
+    return [...STAGES].reverse().find((entry) => state.difficulty.progressionScore >= entry.score) ?? STAGES[0];
   }
 
   function chooseNormalType() {
@@ -236,7 +238,7 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
     if (boss || !bruteIntroduced || bruteCooldown > 0 || current.maxBrutes === 0) return 'grunt';
     if (enemies.filter((enemy) => enemy.type === 'brute').length >= current.maxBrutes) return 'grunt';
     const growth = current.number === 3
-      ? Math.floor((state.score - current.score) / STAGE_THREE_BRUTE_SHARE_SCORE_STEP) * STAGE_THREE_BRUTE_SHARE_GROWTH : 0;
+      ? Math.floor((state.difficulty.progressionScore - current.score) / STAGE_THREE_BRUTE_SHARE_SCORE_STEP) * STAGE_THREE_BRUTE_SHARE_GROWTH : 0;
     return Math.random() < Math.min(STAGE_THREE_BRUTE_SHARE_CAP, current.bruteShare + growth) ? 'brute' : 'grunt';
   }
 
@@ -429,7 +431,7 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
   function update(dt, playerPosition) {
     bruteCooldown = Math.max(0, bruteCooldown - dt);
     if (stage().number >= 2 && !bruteIntroduced && !boss) {
-      const introduction = cornerSpawn('brute');
+      const introduction = edgeSpawn('brute', playerPosition);
       if (introduction) {
         bruteIntroduced = true;
         bruteCooldown = BRUTE_INTRO_COOLDOWN;
@@ -440,16 +442,19 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
       pendingBosses += 1;
       nextBossScore += BOSS_SCORE_STEP;
     }
-    if (pendingBosses > 0 && !boss && cornerSpawn('boss')) pendingBosses -= 1;
-    const level = Math.floor(state.score / DIFFICULTY_SCORE_INTERVAL);
-    const baseInterval = Math.max(MIN_SPAWN_SECONDS, ENEMY_SPAWN_SECONDS - level * DIFFICULTY_SPAWN_STEP);
+    if (pendingBosses > 0 && !boss && edgeSpawn('boss', playerPosition)) pendingBosses -= 1;
+    const baseInterval = state.difficulty.enemySpawnSeconds;
     const interval = boss ? baseInterval / BOSS_NORMAL_SPAWN_RATE : baseInterval;
     spawnTimer += dt;
     while (spawnTimer >= interval) {
       spawnTimer -= interval;
-      cornerSpawn(chooseNormalType());
+      for (let count = 0; count < state.difficulty.enemySpawnCount; count++) {
+        if (enemies.length >= state.difficulty.enemyLimit) break;
+        edgeSpawn(chooseNormalType(), playerPosition);
+      }
     }
-    const difficultySpeed = 1 + level * DIFFICULTY_SPEED_STEP;
+    // Apply current pressure to every living enemy, including ones spawned earlier.
+    const difficultySpeed = state.difficulty.enemySpeedMultiplier;
     const nearestBrutes = enemies.filter((enemy) => enemy.type === 'brute')
       .map((enemy) => ({ enemy, distance: Math.hypot(enemy.group.position.x - playerPosition.x, enemy.group.position.y - playerPosition.y) }))
       .filter(({ distance }) => distance <= AUDIO_BRUTE_HEARING_RANGE)
@@ -599,9 +604,9 @@ export function createEnemies(scene, state, onKill, hooks = {}) {
     bruteIntroduced = false;
     bruteCooldown = 0;
     nextEnemyId = 0;
-    if (spawnAtStart) cornerSpawn('grunt');
+    if (spawnAtStart) edgeSpawn('grunt');
   }
-  cornerSpawn('grunt');
+  edgeSpawn('grunt');
   return { enemies, update, remove, damage, contactKnockback, clear,
     get boss() { return boss; }, get stage() { return stage(); } };
 }

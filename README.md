@@ -20,12 +20,6 @@ This repository began with the *Build a Game with an AI Coding Agent* course sca
 
 *A foreground house turns translucent only when it obscures an important on-screen object. Its color and the rest of the playfield remain visible. The blue tag at the lower right belongs to the screenshot tool, not the game.*
 
-### Upgrade picker
-
-![Three upgrade cards with icons, descriptions, current and new values, and level caps](docs/screenshots/upgrades.png)
-
-*Scoring milestones pause the game and offer three different upgrades. Each card explains what changes and shows its current and next value.*
-
 ## Play locally
 
 ```sh
@@ -52,14 +46,14 @@ The game runs entirely in the browser; it needs no server or account. High score
 | E | Eat a nearby Grunt with Tode's tongue |
 | P | Pause or resume |
 | M | Mute or unmute |
-| 1, 2, 3 or click | Choose an upgrade card |
+| Walk over glowing perk icons | Collect powers immediately without pausing |
 | Enter after victory | Continue in Endless Mode |
 | Space after victory or Game Over | Start a new run |
 
 ## What we built beyond the course scaffold
 
 - **Tea leaves and brews:** defeated enemies can drop leaves for Green Tea speed, a Chamomile shield, or a Matcha Burst.
-- **Survival and progression:** hearts, a score-driven upgrade picker, stacking upgrades, changing stages, and Grunt and Brute enemies.
+- **Survival and progression:** hearts, random perk pickups, stacking powers, escalating swarms, changing stages, and Grunt and Brute enemies.
 - **Monster King:** a multi-phase boss with visible charge and stomp warnings, summoned Grunts, an enraged phase, and a house-crash weakness.
 - **Combat feedback:** Tode's tongue attack, hit reactions, particles, screen shake, and clear HUD feedback.
 - **Atmosphere and sound:** lighting shifts from dusk to night with fireflies and crickets. Music and effects are synthesized with the Web Audio API.
@@ -67,7 +61,7 @@ The game runs entirely in the browser; it needs no server or account. High score
 
 ## Repository layout
 
-- [`game/`](game/) — the playable Vite project; see its [game README](game/README.md) for the concise game guide.
+- [`game/`](game/) — the playable Vite project; see the [judge guide](game/README.md) for complete local setup, commands, feature tables, and current screenshots.
 - `Introduction/`, `Skeleton/`, `Core_loop/`, `Visual/`, `Conclusion/` — course lessons and reference material.
 - Root configuration and metadata — files used by the course project.
 

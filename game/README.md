@@ -6,6 +6,12 @@ Hop across the checkerboard, fight monsters, collect tea and permanent powers, s
 
 Built with **Three.js, Vite, and the Web Audio API**. The game runs in your browser, with a local development server serving the files. No account, API key, database, or application backend is required. Character models are included; music and sound effects are synthesized in the browser.
 
+## Gameplay
+
+![Tode hopping through combat, perk pickups, and an enemy swarm](docs/submission/todes-tea-time-gameplay.gif)
+
+[Download the 19-second gameplay GIF](docs/submission/todes-tea-time-gameplay.gif) (10.3 MB).
+
 ## Run locally: clone to play
 
 ### Requirements
